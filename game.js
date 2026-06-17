@@ -241,7 +241,11 @@
   let powerups = [];
   let rockets = [];
   let floats = [];
+  let boss = null;
+  let bossShots = [];
   let shake = 0, flash = 0, flashHue = 320;
+  const isBossLevel = (lvl) => lvl % 5 === 0;
+  let onBossDamaged = null, onBossDefeated = null; // hooki dla osiągnięć
 
   // ---------- Aktywne efekty (czas w klatkach 60 fps) ----------
   const FX = {
@@ -341,6 +345,8 @@
   }
 
   function buildLevel() {
+    boss = null; bossShots = [];
+    if (isBossLevel(level)) { buildBossLevel(); return; }
     const word = artWordFor(level);
     if (word) { buildArtLevel(word); return; }
     bricks = [];
@@ -631,6 +637,7 @@
     Audio.lose();
     if (lives <= 0) { gameOver(); return; }
     resetFX();
+    bossShots = [];
     paddle.w = paddleTargetW();
     resetBallOnPaddle();
     state = State.READY;
@@ -772,6 +779,7 @@
     if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0; }
 
     updateBricks(dt);
+    if (state === State.PLAYING) { updateBoss(dt); updateBossShots(dt); }
 
     // ---- Piłki ----
     if (state === State.READY) {
@@ -802,7 +810,7 @@
 
     if (balls.length === 0) { loseLife(); return; }
 
-    if (bricks.every(br => !br.alive || br.type === 'steel')) {
+    if (bricks.every(br => !br.alive || br.type === 'steel') && (!boss || !boss.alive)) {
       state = State.LEVELCLEAR; levelClearTimer = 70; shake = 14;
       for (let k = 0; k < 40; k++) burst(rand(0, W), rand(fieldTop, H / 2), rand(180, 320), 6, 1.4);
     }
@@ -866,6 +874,7 @@
       }
 
       hitBricks(b);
+      hitBoss(b);
     }
     pushTrail(b);
   }
@@ -938,6 +947,103 @@
     }
   }
 
+  // ============================================================
+  //  BOSS (co 5. poziom)
+  // ============================================================
+  function buildBossLevel() {
+    bricks = [];
+    const tier = level / 5;
+    const hp = Math.round(16 + tier * 12);
+    boss = {
+      x: W / 2, y: 150, w: 210, h: 74, hp, maxHp: hp,
+      vx: (1.6 + tier * 0.35) * (Math.random() < 0.5 ? 1 : -1),
+      bob: rand(0, TAU), fireTimer: 150, hit: 0, alive: true, hue: 330
+    };
+  }
+
+  function updateBoss(dt) {
+    if (!boss || !boss.alive) return;
+    boss.bob += 0.04 * dt;
+    boss.x += boss.vx * dt;
+    const half = boss.w / 2;
+    if (boss.x - half < 12) { boss.x = 12 + half; boss.vx = Math.abs(boss.vx); }
+    else if (boss.x + half > W - 12) { boss.x = W - 12 - half; boss.vx = -Math.abs(boss.vx); }
+    if (boss.hit > 0) boss.hit *= 0.88;
+    boss.fireTimer -= dt;
+    if (boss.fireTimer <= 0) {
+      const tier = level / 5;
+      fireBossShots(1 + Math.min(2, Math.floor(tier / 2)));
+      boss.fireTimer = Math.max(58, 150 - tier * 12);
+    }
+  }
+
+  function fireBossShots(n) {
+    const bx = boss.x, by = boss.y + boss.h / 2;
+    const tx = paddle.x + paddle.w / 2;
+    const lead = clamp((tx - bx) / 200, -1.4, 1.4);
+    const sp = 3.0 + level * 0.04;
+    for (let i = 0; i < n; i++) {
+      bossShots.push({
+        x: bx, y: by, vx: lead * 1.8 + (i - (n - 1) / 2) * 1.2 + rand(-0.4, 0.4),
+        vy: sp, r: 10, spin: rand(0, TAU)
+      });
+    }
+    Audio.bad();
+  }
+
+  function updateBossShots(dt) {
+    for (let i = bossShots.length - 1; i >= 0; i--) {
+      const s = bossShots[i];
+      s.x += s.vx * dt; s.y += s.vy * dt; s.spin += 0.2 * dt;
+      if (Math.random() < 0.5) particles.push({ x: s.x, y: s.y, vx: rand(-0.3, 0.3), vy: rand(-0.4, 0.6), life: 1, decay: 0.07, r: rand(1, 2.5), hue: 335 });
+      if (s.y + s.r > paddle.y && s.y - s.r < paddle.y + paddle.h && s.x > paddle.x - s.r && s.x < paddle.x + paddle.w + s.r) {
+        bossShots.splice(i, 1);
+        flash = 0.7; flashHue = 335; shake = 20; Audio.explode();
+        burst(s.x, paddle.y, 335, 22, 1.3);
+        loseLife();
+        return;
+      }
+      if (s.y - s.r > H || s.x < -24 || s.x > W + 24) bossShots.splice(i, 1);
+    }
+  }
+
+  function hitBoss(b) {
+    if (!boss || !boss.alive) return;
+    const bx = boss.x - boss.w / 2, by = boss.y - boss.h / 2;
+    if (b.x + b.r < bx || b.x - b.r > bx + boss.w || b.y + b.r < by || b.y - b.r > by + boss.h) return;
+    if (FX.fireball <= 0) {
+      const oL = (b.x + b.r) - bx, oR = (bx + boss.w) - (b.x - b.r);
+      const oT = (b.y + b.r) - by, oB = (by + boss.h) - (b.y - b.r);
+      const minX = Math.min(oL, oR), minY = Math.min(oT, oB);
+      if (minX < minY) { b.vx = -b.vx; b.x += oL < oR ? -minX : minX; }
+      else { b.vy = -b.vy; b.y += oT < oB ? -minY : minY; }
+    }
+    damageBoss(b.x, b.y, FX.fireball > 0 ? 2 : 1);
+  }
+
+  function damageBoss(px, py, dmg) {
+    if (!boss || !boss.alive) return;
+    boss.hp -= dmg; boss.hit = 1;
+    combo++; comboTimer = 90; showCombo();
+    Audio.brick(combo);
+    burst(px, py, boss.hue, 12, 1.1);
+    shake = Math.min(shake + 2, 12);
+    addScore(45 * dmg);
+    onBossDamaged && onBossDamaged(dmg);
+    if (boss.hp <= 0) defeatBoss();
+  }
+
+  function defeatBoss() {
+    boss.alive = false; bossShots = [];
+    const bonus = 1000 * (level / 5);
+    addScore(bonus);
+    floatText(boss.x, boss.y, '★ BOSS +' + bonus, boss.hue);
+    shake = 28; flash = 0.6; flashHue = 330;
+    for (let k = 0; k < 64; k++) burst(boss.x + rand(-boss.w / 2, boss.w / 2), boss.y + rand(-boss.h / 2, boss.h / 2), rand(300, 360), 6, 1.9);
+    Audio.explode(); Audio.win();
+    onBossDefeated && onBossDefeated();
+  }
+
   // ---- Rakiety ----
   function fireRockets() {
     rockets.push({ x: paddle.x + 12, y: paddle.y, vy: -10 });
@@ -956,6 +1062,11 @@
           damageBrick(br, { x: r.x, y: r.y }, false);
           hit = true; break;
         }
+      }
+      if (!hit && boss && boss.alive &&
+          r.x > boss.x - boss.w / 2 && r.x < boss.x + boss.w / 2 &&
+          r.y < boss.y + boss.h / 2 && r.y > boss.y - boss.h / 2 - 6) {
+        damageBoss(r.x, r.y, 1); hit = true;
       }
       if (hit || r.y < -10) rockets.splice(i, 1);
     }
@@ -987,6 +1098,8 @@
     drawBackground(time);
     drawShield(time);
     drawBricks();
+    drawBoss(time);
+    drawBossShots();
     drawPowerups();
     drawRockets();
     drawPaddle();
@@ -1046,6 +1159,61 @@
     ctx.shadowColor = T.accentColor; ctx.shadowBlur = 20;
     ctx.beginPath(); ctx.moveTo(0, H - 12); ctx.lineTo(W, H - 12); ctx.stroke();
     ctx.restore();
+  }
+
+  function drawBoss(time) {
+    if (!boss || !boss.alive) return;
+    const cx = boss.x, cy = boss.y + Math.sin(boss.bob) * 6;
+    const w = boss.w, h = boss.h, x = cx - w / 2, y = cy - h / 2;
+    ctx.save();
+    // korpus
+    ctx.shadowColor = hsl(boss.hue, 100, 60); ctx.shadowBlur = 26 + boss.hit * 34;
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, hsl(boss.hue, 95, 62 + boss.hit * 30));
+    g.addColorStop(1, hsl(boss.hue, 90, 36));
+    ctx.fillStyle = g; roundRect(x, y, w, h, 18); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = hsl(boss.hue, 100, 82, 0.85); ctx.lineWidth = 2;
+    roundRect(x + 2, y + 2, w - 4, h - 4, 16); ctx.stroke();
+    // rogi
+    ctx.fillStyle = hsl(boss.hue, 90, 50);
+    ctx.beginPath(); ctx.moveTo(x + 18, y + 4); ctx.lineTo(x + 36, y + 4); ctx.lineTo(x + 22, y - 16); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + w - 18, y + 4); ctx.lineTo(x + w - 36, y + 4); ctx.lineTo(x + w - 22, y - 16); ctx.closePath(); ctx.fill();
+    // oczy
+    const eyeY = cy - 6;
+    ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 14;
+    for (const ex of [cx - 42, cx + 42]) { ctx.beginPath(); ctx.ellipse(ex, eyeY, 15, 11, 0, 0, TAU); ctx.fill(); }
+    ctx.shadowBlur = 0; ctx.fillStyle = '#1a0308';
+    for (const ex of [cx - 42, cx + 42]) { ctx.beginPath(); ctx.arc(ex + clamp(boss.vx, -1, 1) * 4, eyeY + 2, 5.5, 0, TAU); ctx.fill(); }
+    // paszcza z zębami
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; roundRect(cx - 50, cy + 16, 100, 16, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx - 46 + i * 16, cy + 16); ctx.lineTo(cx - 38 + i * 16, cy + 16); ctx.lineTo(cx - 42 + i * 16, cy + 26); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    // pasek HP
+    const bw = w, bx = cx - w / 2, byy = y - 22;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; roundRect(bx - 2, byy - 2, bw + 4, 12, 5); ctx.fill();
+    const frac = clamp(boss.hp / boss.maxHp, 0, 1);
+    ctx.fillStyle = hsl(120 * frac, 90, 52); ctx.shadowColor = hsl(120 * frac, 90, 52); ctx.shadowBlur = 12;
+    roundRect(bx, byy, bw * frac, 8, 4); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBossShots() {
+    for (const s of bossShots) {
+      ctx.save();
+      ctx.translate(s.x, s.y); ctx.rotate(s.spin);
+      ctx.shadowColor = '#ff2b6b'; ctx.shadowBlur = 16;
+      ctx.fillStyle = '#1a0308'; ctx.strokeStyle = '#ff2b6b'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU, rr = i % 2 ? s.r - 3 : s.r + 3; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawBricks() {
