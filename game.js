@@ -169,6 +169,60 @@
   const hsl = (h, s, l, a = 1) => `hsla(${h}, ${s}%, ${l}%, ${a})`;
 
   // ============================================================
+  //  Motywy / skórki
+  // ============================================================
+  const THEMES = {
+    neon: {
+      name: 'NEON', nebula: '157, 78, 221', stars: ['#bfefff', '#7a6bff'],
+      grid: 'rgba(0, 240, 255, 0.06)', accent: 190, accentColor: '#00f0ff',
+      paddle: ['#aefcff', '#00f0ff', '#0077aa'], paddleGlow: '#00f0ff', paddleEnd: '#ff00e6',
+      ball: ['#ffffff', '#aefcff', '#00d6ff'], ballGlow: '#9fefff', ballTrail: 190,
+      brick: (h) => ({ h, s: 92 }),
+      css: { cyan: '#00f0ff', magenta: '#ff00e6', purple: '#9d4edd' }, scan: false, tint: null
+    },
+    vapor: {
+      name: 'VAPORWAVE', nebula: '180, 90, 255', stars: ['#ffd6f6', '#8be9ff'],
+      grid: 'rgba(255, 120, 230, 0.07)', accent: 300, accentColor: '#ff77e6',
+      paddle: ['#fff0fb', '#ff77e6', '#7a2bd6'], paddleGlow: '#ff77e6', paddleEnd: '#26e0ff',
+      ball: ['#ffffff', '#ffd6f6', '#26e0ff'], ballGlow: '#ffb3ec', ballTrail: 300,
+      brick: (h) => ({ h: (h + 110) % 360, s: 95 }),
+      css: { cyan: '#26e0ff', magenta: '#ff77e6', purple: '#b15cff' }, scan: false, tint: 'rgba(60, 0, 60, 0.06)'
+    },
+    crt: {
+      name: 'CRT RETRO', nebula: '120, 90, 30', stars: ['#ffe7a0', '#bf8f3f'],
+      grid: 'rgba(255, 176, 0, 0.07)', accent: 40, accentColor: '#ffb000',
+      paddle: ['#fff0c0', '#ffb000', '#a05a00'], paddleGlow: '#ffb000', paddleEnd: '#ff7000',
+      ball: ['#ffffff', '#ffe7a0', '#ffb000'], ballGlow: '#ffd060', ballTrail: 40,
+      brick: (h) => ({ h: 32 + (h / 360) * 22, s: 88 }),
+      css: { cyan: '#ffb000', magenta: '#ff7000', purple: '#c98a00' }, scan: true, tint: 'rgba(40, 24, 0, 0.10)'
+    },
+    matrix: {
+      name: 'MATRIX', nebula: '0, 200, 60', stars: ['#b6ffb6', '#39ff14'],
+      grid: 'rgba(57, 255, 20, 0.08)', accent: 130, accentColor: '#39ff14',
+      paddle: ['#d6ffd6', '#39ff14', '#0a7a0a'], paddleGlow: '#39ff14', paddleEnd: '#aaffaa',
+      ball: ['#ffffff', '#aaffaa', '#39ff14'], ballGlow: '#39ff14', ballTrail: 130,
+      brick: (h) => ({ h: 110 + (h / 360) * 40, s: 100 }),
+      css: { cyan: '#39ff14', magenta: '#aaffaa', purple: '#1fbf0a' }, scan: true, tint: 'rgba(0, 40, 0, 0.12)'
+    }
+  };
+  const THEME_KEY = 'neonBreakoutTheme';
+  let themeKey = 'neon';
+  try { const s = localStorage.getItem(THEME_KEY); if (s && THEMES[s]) themeKey = s; } catch {}
+  let T = THEMES[themeKey];
+
+  function applyTheme(key) {
+    if (!THEMES[key]) return;
+    themeKey = key; T = THEMES[key];
+    try { localStorage.setItem(THEME_KEY, key); } catch {}
+    const root = document.documentElement.style;
+    root.setProperty('--neon-cyan', T.css.cyan);
+    root.setProperty('--neon-magenta', T.css.magenta);
+    root.setProperty('--neon-purple', T.css.purple);
+    document.querySelectorAll('#theme-row .theme-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.theme === key));
+  }
+
+  // ============================================================
   //  Tło — gwiazdy paralaksy
   // ============================================================
   const stars = [];
@@ -245,7 +299,50 @@
     return 'normal';
   }
 
+  // ---- Plansze "artystyczne" (napis z cegieł) ----
+  const FONT5 = {
+    L: ['X..', 'X..', 'X..', 'X..', 'XXX'],
+    O: ['XXX', 'X.X', 'X.X', 'X.X', 'XXX'],
+    E: ['XXX', 'X..', 'XXX', 'X..', 'XXX'],
+    K: ['X.X', 'XX.', 'X..', 'XX.', 'X.X']
+  };
+  function wordBitmap(word) {
+    const rows = ['', '', '', '', ''];
+    word.split('').forEach((ch, i) => {
+      const g = FONT5[ch];
+      for (let r = 0; r < 5; r++) rows[r] += (i ? '.' : '') + g[r];
+    });
+    return rows;
+  }
+  // które poziomy są artystyczne i jaki mają napis
+  function artWordFor(lvl) {
+    return (lvl % 5 === 3) ? 'LOLEK' : null; // poziomy 3, 8, 13, 18, 23
+  }
+
+  function buildArtLevel(word) {
+    bricks = [];
+    const rows = wordBitmap(word);
+    const cols = rows[0].length, rws = rows.length;
+    const cw = 40, ch = 26, gx = 5, gy = 7;
+    const cellW = cw + gx, cellH = ch + gy;
+    const left = (W - (cols * cellW - gx)) / 2;
+    const top = fieldTop + 36;
+    for (let r = 0; r < rws; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (rows[r][c] !== 'X') continue;
+        const x = left + c * cellW, y = top + r * cellH;
+        bricks.push({
+          x, y, w: cw, h: ch, hp: 2, maxHp: 2,
+          hue: ((c / cols) * 300 + 180) % 360, alive: true, hit: 0,
+          type: 'normal', vx: 0, originX: x, range: 0, regen: 0, heal: 0, pulse: rand(0, TAU)
+        });
+      }
+    }
+  }
+
   function buildLevel() {
+    const word = artWordFor(level);
+    if (word) { buildArtLevel(word); return; }
     bricks = [];
     const pat = patterns[(level - 1) % patterns.length];
     const extra = Math.floor((level - 1) / patterns.length);
@@ -436,6 +533,9 @@
     const on = Audio.toggleMusic();
     $musicBtn.textContent = on ? '🎵 MUZYKA' : '🎵 MUZYKA (off)';
     $musicBtn.classList.toggle('off', !on);
+  });
+  document.querySelectorAll('#theme-row .theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
   });
 
   // ============================================================
@@ -904,24 +1004,35 @@
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
+
+    // overlay motywu: scanlines (CRT/Matrix) + zabarwienie
+    if (T.scan || T.tint) {
+      ctx.save();
+      if (T.tint) { ctx.fillStyle = T.tint; ctx.fillRect(0, 0, W, H); }
+      if (T.scan) {
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1.4);
+      }
+      ctx.restore();
+    }
   }
 
   function drawBackground(time) {
     const g = ctx.createRadialGradient(W / 2, -60, 40, W / 2, H * 0.3, W);
     const pulse = 0.12 + Math.sin(time * 0.0006) * 0.04;
-    g.addColorStop(0, `rgba(157, 78, 221, ${pulse})`);
+    g.addColorStop(0, `rgba(${T.nebula}, ${pulse})`);
     g.addColorStop(0.5, 'rgba(20, 8, 48, 0)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
     for (const s of stars) {
       ctx.globalAlpha = 0.3 + s.z * 0.6;
-      ctx.fillStyle = s.z > 0.7 ? '#bfefff' : '#7a6bff';
+      ctx.fillStyle = s.z > 0.7 ? T.stars[0] : T.stars[1];
       ctx.beginPath(); ctx.arc(s.x, s.y, s.r * s.z, 0, TAU); ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = 'rgba(0, 240, 255, 0.06)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = T.grid; ctx.lineWidth = 1;
     for (let x = 0; x <= W; x += 44) { ctx.beginPath(); ctx.moveTo(x, H * 0.8); ctx.lineTo(W / 2 + (x - W / 2) * 2.2, H); ctx.stroke(); }
   }
 
@@ -931,8 +1042,8 @@
     const fade = FX.shield < 90 ? FX.shield / 90 : 1;
     ctx.save();
     ctx.globalAlpha = a * fade;
-    ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 4;
-    ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 20;
+    ctx.strokeStyle = T.accentColor; ctx.lineWidth = 4;
+    ctx.shadowColor = T.accentColor; ctx.shadowBlur = 20;
     ctx.beginPath(); ctx.moveTo(0, H - 12); ctx.lineTo(W, H - 12); ctx.stroke();
     ctx.restore();
   }
@@ -960,10 +1071,11 @@
       }
 
       // ---- pozostałe typy ----
-      let hue = br.hue, sat = 92;
-      if (br.type === 'explosive') hue = 18;
-      else if (br.type === 'regen') hue = 135;
+      let hue, sat;
+      if (br.type === 'explosive') { hue = 18; sat = 92; }
+      else if (br.type === 'regen') { hue = 135; sat = 92; }
       else if (br.type === 'multiplier') { hue = 48; sat = 100; }
+      else { const bc = T.brick(br.hue); hue = bc.h; sat = bc.s; } // zwykłe/ruchome wg motywu
       const lum = 45 + (Math.min(br.hp, br.maxHp) / br.maxHp) * 18;
       const healGlow = br.heal > 0 ? br.heal * 26 : 0;
       const pulseGlow = (br.type === 'multiplier' || br.type === 'explosive') ? 5 + Math.sin(br.pulse) * 5 : 0;
@@ -996,11 +1108,11 @@
     const x = paddle.x, y = paddle.y, w = paddle.w, h = paddle.h;
     ctx.save();
     const danger = FX.shrink > 0 || FX.reverse > 0;
-    ctx.shadowColor = danger ? '#ff3b6b' : '#00f0ff';
+    ctx.shadowColor = danger ? '#ff3b6b' : T.paddleGlow;
     ctx.shadowBlur = 22 + paddle.glow * 24;
     const grad = ctx.createLinearGradient(x, y, x, y + h);
     if (danger) { grad.addColorStop(0, '#ffb3c6'); grad.addColorStop(0.5, '#ff3b6b'); grad.addColorStop(1, '#aa1133'); }
-    else { grad.addColorStop(0, '#aefcff'); grad.addColorStop(0.5, '#00f0ff'); grad.addColorStop(1, '#0077aa'); }
+    else { grad.addColorStop(0, T.paddle[0]); grad.addColorStop(0.5, T.paddle[1]); grad.addColorStop(1, T.paddle[2]); }
     ctx.fillStyle = grad; roundRect(x, y, w, h, h / 2); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.fillStyle = `rgba(255,255,255,${0.5 + paddle.glow * 0.4})`;
@@ -1011,7 +1123,7 @@
       roundRect(x + 8, y - 5, 8, 6, 2); ctx.fill();
       roundRect(x + w - 16, y - 5, 8, 6, 2); ctx.fill();
     }
-    ctx.fillStyle = '#ff00e6'; ctx.shadowColor = '#ff00e6'; ctx.shadowBlur = 14;
+    ctx.fillStyle = T.paddleEnd; ctx.shadowColor = T.paddleEnd; ctx.shadowBlur = 14;
     roundRect(x, y, 6, h, 3); ctx.fill(); roundRect(x + w - 6, y, 6, h, 3); ctx.fill();
     ctx.restore();
   }
@@ -1022,15 +1134,15 @@
       for (let i = 0; i < b.trail.length; i++) {
         const t = b.trail[i], a = i / b.trail.length;
         ctx.globalAlpha = a * 0.5;
-        ctx.fillStyle = fire ? hsl(20 + i * 3, 100, 60) : hsl(190 + i * 4, 100, 65);
+        ctx.fillStyle = fire ? hsl(20 + i * 3, 100, 60) : hsl(T.ballTrail + i * 4, 100, 65);
         ctx.beginPath(); ctx.arc(t.x, t.y, b.r * a * 0.9, 0, TAU); ctx.fill();
       }
       ctx.globalAlpha = 1;
       ctx.save();
-      ctx.shadowColor = fire ? '#ffae42' : '#9fefff'; ctx.shadowBlur = 24;
+      ctx.shadowColor = fire ? '#ffae42' : T.ballGlow; ctx.shadowBlur = 24;
       const g = ctx.createRadialGradient(b.x - 2, b.y - 2, 1, b.x, b.y, b.r);
       if (fire) { g.addColorStop(0, '#fff'); g.addColorStop(0.5, '#ffd86b'); g.addColorStop(1, '#ff5a1f'); }
-      else { g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#aefcff'); g.addColorStop(1, '#00d6ff'); }
+      else { g.addColorStop(0, T.ball[0]); g.addColorStop(0.5, T.ball[1]); g.addColorStop(1, T.ball[2]); }
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
       ctx.restore();
     }
@@ -1145,9 +1257,9 @@
   function drawReadyHint(time) {
     const a = 0.5 + Math.sin(time * 0.005) * 0.4;
     ctx.save();
-    ctx.globalAlpha = a; ctx.fillStyle = '#aefcff';
+    ctx.globalAlpha = a; ctx.fillStyle = T.ball[1];
     ctx.font = 'bold 18px Orbitron, sans-serif'; ctx.textAlign = 'center';
-    ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 14;
+    ctx.shadowColor = T.accentColor; ctx.shadowBlur = 14;
     ctx.fillText('SPACJA / KLIK — WYSTRZEL', W / 2, paddle.y - 60);
     ctx.restore();
   }
@@ -1183,6 +1295,7 @@
   // init
   $musicBtn.classList.add('off');
   $musicBtn.textContent = '🎵 MUZYKA (off)';
+  applyTheme(themeKey);
   renderScoreboard(-1);
   $scoreboard.classList.remove('hidden'); // pokaż TOP10 na ekranie startowym
   updateHUD();

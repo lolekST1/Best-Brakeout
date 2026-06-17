@@ -242,6 +242,27 @@ html, body {
 
 .start-hidden { display: none !important; }
 
+/* ---------- Wybór motywu ---------- */
+.theme-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 8px; margin: 2px 0 22px;
+}
+.theme-label {
+  font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 3px;
+  color: rgba(185, 199, 255, 0.7); margin-right: 4px;
+}
+.theme-btn {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1.5px;
+  color: #cfe4ff; background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(157, 78, 221, 0.4); border-radius: 8px;
+  padding: 7px 14px; cursor: pointer; transition: all 0.18s;
+}
+.theme-btn:hover { border-color: var(--neon-cyan); color: #fff; }
+.theme-btn.active {
+  color: #04121a; background: var(--neon-cyan); border-color: var(--neon-cyan);
+  box-shadow: 0 0 16px var(--neon-cyan);
+}
+
 .mute-row { margin-top: 18px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .mini-btn {
   background: transparent;
