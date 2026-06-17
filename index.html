@@ -37,14 +37,31 @@
         <h1 class="title glitch" data-text="NEON BREAKOUT">NEON BREAKOUT</h1>
         <p class="subtitle" id="overlay-subtitle">Rozbij wszystkie bloki. Przetrwaj. Błyszcz.</p>
         <div id="overlay-stats" class="overlay-stats hidden"></div>
+
+        <div id="name-entry" class="name-entry hidden">
+          <p class="ne-label">🏆 NOWY REKORD! Wpisz swój nick:</p>
+          <div class="ne-row">
+            <input id="name-input" maxlength="12" placeholder="GRACZ" autocomplete="off" />
+            <button id="save-score" class="neon-btn small">ZAPISZ</button>
+          </div>
+        </div>
+
+        <div id="scoreboard" class="scoreboard hidden">
+          <h3>TOP 10</h3>
+          <ol id="score-list"></ol>
+        </div>
+
         <button id="start-btn" class="neon-btn">START</button>
         <div class="controls-hint">
           <span>← →  /  A D  &nbsp;ruch</span>
           <span>MYSZ&nbsp;steruje paletką</span>
-          <span>SPACJA&nbsp;wystrzel · pauza</span>
+          <span>SPACJA / KLIK&nbsp;wystrzel</span>
+          <span>P / ESC&nbsp;pauza</span>
+          <span>🚀 rakiety strzelają same</span>
         </div>
         <div class="mute-row">
           <button id="mute-btn" class="mini-btn">🔊 DŹWIĘK</button>
+          <button id="music-btn" class="mini-btn off">🎵 MUZYKA</button>
         </div>
       </div>
     </div>
