@@ -1,0 +1,49 @@
+# 🎮 NEON BREAKOUT
+
+Najbardziej **wypasiona wizualnie** wersja klasycznej gry Breakout / Arkanoid.
+Czysty HTML5 Canvas + JavaScript, **zero zależności**, zero buildu — po prostu otwórz i graj.
+
+![tech](https://img.shields.io/badge/Canvas2D-vanilla_JS-00f0ff) ![deps](https://img.shields.io/badge/dependencies-0-ff00e6)
+
+## ✨ Co czyni ją wypasioną
+
+- 🌈 **Neonowa estetyka** — świecące cegły z gradientami, bloom przez `shadowBlur`, paleta cyan→magenta
+- 💥 **Cząsteczki** — eksplozje przy rozbiciu cegieł, iskry przy odbiciach, tryb mieszania `lighter`
+- 🌠 **Świecący ogon piłki** i animowane tło z paralaksą gwiazd oraz pulsującą mgławicą
+- 📳 **Screen shake** i błyski przy utracie życia / wielkich trafieniach
+- ⚡ **Power-upy**: ×3 piłki, szersza paletka, spowolnienie, dodatkowe życie, bonus punktowy
+- 🔥 **System combo** z mnożnikiem punktów i animowanym wskaźnikiem
+- 🎵 **Dźwięk syntezowany na żywo** (Web Audio API) — bez plików audio
+- 🎚️ **25 poziomów** z proceduralnymi wzorami (piramida, diament, fala, szachownica...)
+- 📱 **Responsywność** + sterowanie dotykowe dla telefonów
+- 🖱️ Sterowanie **myszą, klawiaturą i dotykiem**
+
+## 🚀 Uruchomienie
+
+Po prostu otwórz `index.html` w przeglądarce. Nic nie trzeba instalować.
+
+Albo lokalny serwer (zalecane dla pełni dźwięku):
+
+```bash
+python3 -m http.server 8000
+# otwórz http://localhost:8000
+```
+
+## 🕹️ Sterowanie
+
+| Akcja | Klawisz |
+|-------|---------|
+| Ruch paletki | `←` `→` / `A` `D` / mysz / dotyk |
+| Wystrzel piłkę | `SPACJA` / klik / dotyk |
+| Pauza | `SPACJA` w trakcie gry |
+| Restart | `ENTER` na ekranie końca |
+
+## 🧱 Struktura
+
+```
+index.html   — szkielet, HUD, ekrany overlay
+style.css    — neonowy styl, animacje, glitch, glow
+game.js      — silnik gry: fizyka, kolizje, cząsteczki, audio, poziomy
+```
+
+Miłej zabawy! 🌟

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>NEON BREAKOUT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div class="hud-item">
+        <span class="hud-label">SCORE</span>
+        <span class="hud-value" id="score">0</span>
+      </div>
+      <div class="hud-item center">
+        <span class="hud-label">LEVEL</span>
+        <span class="hud-value" id="level">1</span>
+      </div>
+      <div class="hud-item right">
+        <span class="hud-label">LIVES</span>
+        <span class="hud-value" id="lives">♥♥♥</span>
+      </div>
+    </div>
+
+    <div id="combo-badge"><span id="combo-text">x1</span></div>
+
+    <!-- Overlays -->
+    <div id="overlay" class="overlay">
+      <div class="overlay-panel">
+        <h1 class="title glitch" data-text="NEON BREAKOUT">NEON BREAKOUT</h1>
+        <p class="subtitle" id="overlay-subtitle">Rozbij wszystkie bloki. Przetrwaj. Błyszcz.</p>
+        <div id="overlay-stats" class="overlay-stats hidden"></div>
+        <button id="start-btn" class="neon-btn">START</button>
+        <div class="controls-hint">
+          <span>← →  /  A D  &nbsp;ruch</span>
+          <span>MYSZ&nbsp;steruje paletką</span>
+          <span>SPACJA&nbsp;wystrzel · pauza</span>
+        </div>
+        <div class="mute-row">
+          <button id="mute-btn" class="mini-btn">🔊 DŹWIĘK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="touch-controls">
+      <div class="touch-pad" id="touch-left">◀</div>
+      <div class="touch-pad" id="touch-launch">▲</div>
+      <div class="touch-pad" id="touch-right">▶</div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
