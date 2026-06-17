@@ -142,6 +142,7 @@
       brick(c) { tone(420 + Math.min(c, 14) * 45, 0.10, 'square', 0.18); },
       paddle() { tone(180, 0.09, 'sine', 0.25, 120); },
       wall() { tone(140, 0.06, 'sine', 0.12); },
+      steel() { tone(2200, 0.05, 'square', 0.08, 1500); tone(700, 0.05, 'square', 0.06); },
       power() { tone(520, 0.16, 'triangle', 0.3, 880); tone(660, 0.18, 'sine', 0.2, 1100); },
       bad() { tone(160, 0.3, 'sawtooth', 0.3, 70); noise(0.25, 0.2, 400); },
       rocket() { tone(900, 0.14, 'sawtooth', 0.15, 200); },
@@ -233,6 +234,17 @@
     (c, r) => { if (r > 6) return 0; const w = Math.sin(c * 0.6 + r * 0.4); return w > -0.2 ? (r < 2 ? 4 : 2) : (r < 4 ? 1 : 0); }
   ];
 
+  // Losuje typ cegły specjalnej — szanse rosną z poziomem
+  function rollBrickType() {
+    const roll = Math.random();
+    if (roll < 0.05) return 'multiplier';                 // złota — gwarantowany bonus
+    if (level >= 2 && roll < 0.13) return 'explosive';    // wybuchowa
+    if (level >= 3 && roll < 0.20) return 'steel';        // stalowa (nierozbijalna)
+    if (level >= 4 && roll < 0.27) return 'moving';       // ruchoma
+    if (level >= 5 && roll < 0.33) return 'regen';        // regenerująca
+    return 'normal';
+  }
+
   function buildLevel() {
     bricks = [];
     const pat = patterns[(level - 1) % patterns.length];
@@ -242,10 +254,21 @@
         let hp = pat(c, r);
         if (hp <= 0) continue;
         hp += extra;
-        bricks.push({
-          x: fieldLeft + c * (brickW + gapX), y: fieldTop + r * (brickH + gapY),
-          w: brickW, h: brickH, hp, maxHp: hp, hue: ((r / ROWS) * 280 + 180) % 360, alive: true, hit: 0
-        });
+        const x = fieldLeft + c * (brickW + gapX);
+        const y = fieldTop + r * (brickH + gapY);
+        const type = rollBrickType();
+        const br = {
+          x, y, w: brickW, h: brickH, hp, maxHp: hp,
+          hue: ((r / ROWS) * 280 + 180) % 360, alive: true, hit: 0,
+          type, vx: 0, originX: x, range: 0, regen: 0, heal: 0, pulse: rand(0, TAU)
+        };
+        if (type === 'explosive' || type === 'multiplier' || type === 'steel') { br.hp = 1; br.maxHp = 1; }
+        else if (type === 'regen') { br.hp = br.maxHp = Math.max(2, hp); }
+        else if (type === 'moving') {
+          br.vx = (Math.random() < 0.5 ? -1 : 1) * (0.8 + level * 0.06);
+          br.range = brickW + gapX; // patrol ±1 komórka
+        }
+        bricks.push(br);
       }
     }
   }
@@ -306,6 +329,12 @@
     const bad = Math.random() < badChance;
     const def = bad ? BAD[(Math.random() * BAD.length) | 0] : GOOD[(Math.random() * GOOD.length) | 0];
     powerups.push({ x, y, vy: bad ? 3.0 : 2.4, r: 16, def, good: !bad, spin: rand(0, TAU), pulse: 0 });
+  }
+
+  // gwarantowany dobry bonus (z cegły mnożnikowej)
+  function spawnGood(x, y) {
+    const def = GOOD[(Math.random() * GOOD.length) | 0];
+    powerups.push({ x, y, vy: 2.4, r: 16, def, good: true, spin: rand(0, TAU), pulse: 0 });
   }
 
   // ============================================================
@@ -642,6 +671,8 @@
 
     if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0; }
 
+    updateBricks(dt);
+
     // ---- Piłki ----
     if (state === State.READY) {
       const b = balls[0];
@@ -671,9 +702,27 @@
 
     if (balls.length === 0) { loseLife(); return; }
 
-    if (bricks.every(br => !br.alive)) {
+    if (bricks.every(br => !br.alive || br.type === 'steel')) {
       state = State.LEVELCLEAR; levelClearTimer = 70; shake = 14;
       for (let k = 0; k < 40; k++) burst(rand(0, W), rand(fieldTop, H / 2), rand(180, 320), 6, 1.4);
+    }
+  }
+
+  function updateBricks(dt) {
+    for (const br of bricks) {
+      if (!br.alive) continue;
+      if (br.type === 'moving') {
+        br.x += br.vx * dt;
+        const lo = Math.max(2, br.originX - br.range);
+        const hi = Math.min(W - br.w - 2, br.originX + br.range);
+        if (br.x < lo) { br.x = lo; br.vx = Math.abs(br.vx); }
+        else if (br.x > hi) { br.x = hi; br.vx = -Math.abs(br.vx); }
+      } else if (br.type === 'regen' && br.hp < br.maxHp) {
+        br.regen += dt;
+        if (br.regen > 150) { br.hp++; br.regen = 0; br.heal = 1; }
+      }
+      if (br.heal > 0) br.heal *= 0.92;
+      br.pulse += 0.05 * dt;
     }
   }
 
@@ -721,41 +770,72 @@
     pushTrail(b);
   }
 
+  function bounceOff(br, b) {
+    const oL = (b.x + b.r) - br.x, oR = (br.x + br.w) - (b.x - b.r);
+    const oT = (b.y + b.r) - br.y, oB = (br.y + br.h) - (b.y - b.r);
+    const minX = Math.min(oL, oR), minY = Math.min(oT, oB);
+    if (minX < minY) { b.vx = -b.vx; b.x += oL < oR ? -minX : minX; }
+    else { b.vy = -b.vy; b.y += oT < oB ? -minY : minY; }
+  }
+
   function hitBricks(b) {
     for (let i = 0; i < bricks.length; i++) {
       const br = bricks[i];
       if (!br.alive) continue;
       if (b.x + b.r < br.x || b.x - b.r > br.x + br.w || b.y + b.r < br.y || b.y - b.r > br.y + br.h) continue;
 
-      if (FX.fireball > 0) {
-        damageBrick(br, b, true); // przebija, bez odbicia
-        continue;
+      // stalowa — zawsze odbija i blokuje (nawet ognistą kulę), nie do zniszczenia
+      if (br.type === 'steel') {
+        bounceOff(br, b); br.hit = 1;
+        Audio.steel(); burst(b.x, b.y, 205, 6, 0.8);
+        break;
       }
-      const oL = (b.x + b.r) - br.x, oR = (br.x + br.w) - (b.x - b.r);
-      const oT = (b.y + b.r) - br.y, oB = (br.y + br.h) - (b.y - b.r);
-      const minX = Math.min(oL, oR), minY = Math.min(oT, oB);
-      if (minX < minY) { b.vx = -b.vx; b.x += oL < oR ? -minX : minX; }
-      else { b.vy = -b.vy; b.y += oT < oB ? -minY : minY; }
+      if (FX.fireball > 0) { damageBrick(br, b, true); continue; } // przebija resztę
+      bounceOff(br, b);
       damageBrick(br, b, false);
       break;
     }
   }
 
   function damageBrick(br, b, pierce) {
+    if (br.type === 'steel') return;
     if (pierce) br.hp = 0; else br.hp--;
-    br.hit = 1;
+    br.hit = 1; br.regen = 0;
     combo++; comboTimer = 90; showCombo();
     Audio.brick(combo);
     burst(b.x, b.y, br.hue, 8, 0.9);
-    if (br.hp <= 0) {
-      br.alive = false;
-      const pts = 80 * br.maxHp;
-      addScore(pts);
-      floatText(br.x + br.w / 2, br.y, '+' + Math.round(pts), br.hue);
-      burst(br.x + br.w / 2, br.y + br.h / 2, br.hue, 20, 1.2);
-      shake = Math.min(shake + 3, 12);
-      spawnPowerup(br.x + br.w / 2, br.y + br.h / 2);
-    } else addScore(15);
+    if (br.hp <= 0) destroyBrick(br, true);
+    else addScore(15);
+  }
+
+  function destroyBrick(br, allowDrop) {
+    if (!br.alive) return;
+    br.alive = false;
+    const isMult = br.type === 'multiplier';
+    const pts = (isMult ? 300 : 80) * Math.max(1, br.maxHp);
+    addScore(pts);
+    const hue = isMult ? 48 : (br.type === 'explosive' ? 18 : br.hue);
+    floatText(br.x + br.w / 2, br.y, (isMult ? '★ +' : '+') + Math.round(pts), hue);
+    burst(br.x + br.w / 2, br.y + br.h / 2, hue, isMult ? 30 : 20, 1.2);
+    shake = Math.min(shake + 3, 12);
+    if (allowDrop) {
+      if (isMult) spawnGood(br.x + br.w / 2, br.y + br.h / 2);
+      else spawnPowerup(br.x + br.w / 2, br.y + br.h / 2);
+    }
+    if (br.type === 'explosive') explode(br);
+  }
+
+  // wybuch — niszczy sąsiadów w promieniu (łańcuchowo dla kolejnych wybuchowych)
+  function explode(src) {
+    Audio.explode();
+    shake = Math.min(shake + 8, 22); flash = Math.max(flash, 0.32); flashHue = 25;
+    const cx = src.x + src.w / 2, cy = src.y + src.h / 2, radius = 80;
+    burst(cx, cy, 25, 36, 1.9);
+    for (const br of bricks) {
+      if (!br.alive || br === src || br.type === 'steel') continue;
+      const bx = br.x + br.w / 2, by = br.y + br.h / 2;
+      if (Math.hypot(bx - cx, by - cy) < radius) destroyBrick(br, false);
+    }
   }
 
   // ---- Rakiety ----
@@ -860,23 +940,53 @@
   function drawBricks() {
     for (const br of bricks) {
       if (!br.alive) continue;
-      const lum = 45 + (br.hp / br.maxHp) * 18, hit = br.hit; br.hit *= 0.85;
+      const hit = br.hit; br.hit *= 0.85;
+      const cxp = br.x + br.w / 2, cyp = br.y + br.h / 2;
       ctx.save();
-      ctx.shadowColor = hsl(br.hue, 100, 60); ctx.shadowBlur = 14 + hit * 16;
+
+      // ---- STALOWA (metaliczna, nity) ----
+      if (br.type === 'steel') {
+        ctx.shadowColor = '#9fb4c8'; ctx.shadowBlur = 8 + hit * 16;
+        const g = ctx.createLinearGradient(br.x, br.y, br.x, br.y + br.h);
+        g.addColorStop(0, '#e6eef6'); g.addColorStop(0.5, '#8a99ab'); g.addColorStop(1, '#566273');
+        ctx.fillStyle = g; roundRect(br.x, br.y, br.w, br.h, 5); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2;
+        roundRect(br.x + 0.7, br.y + 0.7, br.w - 1.4, br.h - 1.4, 4); ctx.stroke();
+        ctx.fillStyle = 'rgba(20,28,40,0.65)';
+        for (const rx of [br.x + 6, br.x + br.w - 6])
+          for (const ry of [br.y + 6, br.y + br.h - 6]) { ctx.beginPath(); ctx.arc(rx, ry, 1.8, 0, TAU); ctx.fill(); }
+        ctx.restore(); continue;
+      }
+
+      // ---- pozostałe typy ----
+      let hue = br.hue, sat = 92;
+      if (br.type === 'explosive') hue = 18;
+      else if (br.type === 'regen') hue = 135;
+      else if (br.type === 'multiplier') { hue = 48; sat = 100; }
+      const lum = 45 + (Math.min(br.hp, br.maxHp) / br.maxHp) * 18;
+      const healGlow = br.heal > 0 ? br.heal * 26 : 0;
+      const pulseGlow = (br.type === 'multiplier' || br.type === 'explosive') ? 5 + Math.sin(br.pulse) * 5 : 0;
+
+      ctx.shadowColor = hsl(hue, 100, 60); ctx.shadowBlur = 14 + hit * 16 + pulseGlow + healGlow;
       const grad = ctx.createLinearGradient(br.x, br.y, br.x, br.y + br.h);
-      grad.addColorStop(0, hsl(br.hue, 95, lum + 14 + hit * 30));
-      grad.addColorStop(1, hsl(br.hue, 90, lum - 6));
+      grad.addColorStop(0, hsl(hue, sat, lum + 14 + hit * 30 + healGlow * 0.4));
+      grad.addColorStop(1, hsl(hue, sat - 6, lum - 6));
       ctx.fillStyle = grad; roundRect(br.x, br.y, br.w, br.h, 5); ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = hsl(br.hue, 100, 78, 0.9); ctx.lineWidth = 1.4;
+      ctx.strokeStyle = hsl(hue, 100, 78, 0.9); ctx.lineWidth = 1.4;
       roundRect(br.x + 0.7, br.y + 0.7, br.w - 1.4, br.h - 1.4, 4); ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       roundRect(br.x + 3, br.y + 2, br.w - 6, br.h * 0.34, 3); ctx.fill();
-      if (br.maxHp > 1) {
+
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (br.type === 'explosive') { ctx.font = '13px Rajdhani, sans-serif'; ctx.fillText('💥', cxp, cyp + 1); }
+      else if (br.type === 'multiplier') { ctx.fillStyle = '#3a2a00'; ctx.font = 'bold 15px Orbitron, sans-serif'; ctx.fillText('★', cxp, cyp + 1); }
+      else if (br.type === 'regen') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '13px Rajdhani, sans-serif'; ctx.fillText('♻', cxp, cyp + 1); }
+      else if (br.type === 'moving') { ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '13px Rajdhani, sans-serif'; ctx.fillText('↔', cxp, cyp + 1); }
+      else if (br.maxHp > 1) {
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        for (let d = 0; d < br.hp; d++) {
-          ctx.beginPath(); ctx.arc(br.x + br.w / 2 + (d - (br.hp - 1) / 2) * 7, br.y + br.h - 5, 1.6, 0, TAU); ctx.fill();
-        }
+        for (let d = 0; d < br.hp; d++) { ctx.beginPath(); ctx.arc(cxp + (d - (br.hp - 1) / 2) * 7, br.y + br.h - 5, 1.6, 0, TAU); ctx.fill(); }
       }
       ctx.restore();
     }

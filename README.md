@@ -57,6 +57,18 @@ Spadają jako **czerwone, kolczaste** kapsuły — nie łap ich, odsuń paletkę
 
 Aktywne efekty widać na pasku w lewym dolnym rogu (z odliczaniem czasu).
 
+### 🧱 Cegły specjalne
+
+Pojawiają się losowo, a ich częstotliwość rośnie wraz z poziomem:
+
+| Wygląd | Typ | Zachowanie |
+|--------|-----|------------|
+| 🪨 metaliczna z nitami | **Stalowa** | Nie do zniszczenia (blokuje też ognistą kulę) — nie trzeba jej rozbijać, by ukończyć poziom |
+| 💥 pomarańczowa | **Wybuchowa** | Po rozbiciu niszczy sąsiadów w promieniu — łańcuchowo odpala kolejne wybuchowe |
+| ↔ animowana | **Ruchoma** | Przesuwa się w poziomie tam i z powrotem |
+| ♻ zielona | **Regenerująca** | Jeśli nie dobijesz jej szybko, odbudowuje wytrzymałość |
+| ★ złota | **Mnożnikowa** | Potrójne punkty i **gwarantowany** dobry power-up |
+
 ## 🚀 Uruchomienie
 
 Po prostu otwórz `index.html` w przeglądarce. Nic nie trzeba instalować.
