@@ -5,6 +5,14 @@ Czysty HTML5 Canvas + JavaScript, **zero zależności**, zero buildu — po pros
 
 ![tech](https://img.shields.io/badge/Canvas2D-vanilla_JS-00f0ff) ![deps](https://img.shields.io/badge/dependencies-0-ff00e6)
 
+## ▶️ Graj online
+
+👉 **https://lolekst1.github.io/Best-Brakeout/**
+
+> Pierwsze uruchomienie wymaga jednorazowego włączenia GitHub Pages:
+> **Settings → Pages → Build and deployment → Source: „Deploy from a branch" → Branch: `main` `/ (root)` → Save**.
+> Po ~1 minucie gra będzie dostępna pod powyższym linkiem.
+
 ## ✨ Co czyni ją wypasioną
 
 - 🌈 **Neonowa estetyka** — świecące cegły z gradientami, bloom przez `shadowBlur`, paleta cyan→magenta
