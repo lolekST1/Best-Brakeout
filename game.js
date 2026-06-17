@@ -259,7 +259,7 @@
   const State = { MENU: 0, READY: 1, PLAYING: 2, PAUSED: 3, LEVELCLEAR: 4, GAMEOVER: 5, WIN: 6 };
   let state = State.MENU;
   let score = 0, lives = 3, level = 1, combo = 0, comboTimer = 0;
-  let levelClearTimer = 0, awaitingName = false;
+  let levelClearTimer = 0, awaitingName = false, lostThisLevel = false;
 
   const BASE_SPEED = 6.2;
   const MAX_LEVEL = 25;
@@ -465,6 +465,7 @@
     updateHUD();
   }
   function showCombo() {
+    if (combo > stats.maxCombo) { stats.maxCombo = combo; bumpStats(); }
     if (combo < 2) return;
     $comboText.textContent = 'x' + combo;
     $combo.classList.remove('show'); void $combo.offsetWidth; $combo.classList.add('show');
@@ -559,7 +560,9 @@
     saveScores(a);
     return a;
   }
+  let lastMeIdx = -1;
   function renderScoreboard(meIdx = -1) {
+    lastMeIdx = meIdx;
     const a = loadScores();
     $scoreList.innerHTML = '';
     if (a.length === 0) {
@@ -572,9 +575,104 @@
         $scoreList.appendChild(li);
       });
     }
-    $scoreboard.classList.remove('hidden');
   }
   function escapeHtml(s) { return String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
+  // ============================================================
+  //  Osiągnięcia i statystyki (localStorage)
+  // ============================================================
+  const ACHIEVEMENTS = [
+    { id: 'first', icon: '🧱', name: 'Pierwsze starcie', desc: 'Rozbij 100 cegieł', test: s => s.bricks >= 100 },
+    { id: 'breaker', icon: '🏗️', name: 'Burzyciel', desc: 'Rozbij 1000 cegieł', test: s => s.bricks >= 1000 },
+    { id: 'collector', icon: '🎁', name: 'Zbieracz', desc: 'Złap 100 power-upów', test: s => s.powerups >= 100 },
+    { id: 'sapper', icon: '💣', name: 'Saper', desc: 'Odpal 50 wybuchowych cegieł', test: s => s.explosives >= 50 },
+    { id: 'gold', icon: '⭐', name: 'Złotko', desc: 'Rozbij 25 mnożnikowych cegieł', test: s => s.multipliers >= 25 },
+    { id: 'combo10', icon: '🔥', name: 'Kombinator', desc: 'Osiągnij combo ×10', test: s => s.maxCombo >= 10 },
+    { id: 'combo20', icon: '⚡', name: 'Mistrz combo', desc: 'Osiągnij combo ×20', test: s => s.maxCombo >= 20 },
+    { id: 'flawless', icon: '🛡️', name: 'Bez skazy', desc: 'Ukończ poziom bez utraty życia', test: s => s.flawless },
+    { id: 'boss1', icon: '👹', name: 'Pogromca', desc: 'Pokonaj pierwszego bossa', test: s => s.bosses >= 1 },
+    { id: 'survivor', icon: '🚀', name: 'Wytrwały', desc: 'Dojdź do poziomu 10', test: s => s.maxLevel >= 10 },
+    { id: 'highroller', icon: '💎', name: 'Wysokie loty', desc: 'Zdobądź 50 000 pkt w jednej grze', test: s => s.bestScore >= 50000 },
+    { id: 'champion', icon: '👑', name: 'Legenda neonu', desc: 'Ukończ całą grę (poziom 25)', test: s => s.won },
+  ];
+  const STATS_KEY = 'neonBreakoutStats', ACH_KEY = 'neonBreakoutAch';
+  const defaultStats = () => ({ bricks: 0, powerups: 0, explosives: 0, multipliers: 0, bosses: 0, maxLevel: 1, maxCombo: 0, bestScore: 0, games: 0, flawless: false, won: false });
+  let stats = defaultStats();
+  try { stats = Object.assign(defaultStats(), JSON.parse(localStorage.getItem(STATS_KEY)) || {}); } catch {}
+  let unlocked = new Set();
+  try { unlocked = new Set(JSON.parse(localStorage.getItem(ACH_KEY)) || []); } catch {}
+  function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch {} }
+  function saveUnlocked() { try { localStorage.setItem(ACH_KEY, JSON.stringify([...unlocked])); } catch {} }
+  let statsDirty = false;
+  function bumpStats() { statsDirty = true; checkAchievements(); } // zapis throttlowany niżej
+  setInterval(() => { if (statsDirty) { saveStats(); statsDirty = false; } }, 1500);
+  window.addEventListener('beforeunload', () => { if (statsDirty) saveStats(); });
+  function checkAchievements() {
+    for (const a of ACHIEVEMENTS) {
+      if (!unlocked.has(a.id) && a.test(stats)) {
+        unlocked.add(a.id); saveUnlocked(); toastAchievement(a);
+      }
+    }
+  }
+
+  const $achList = document.getElementById('ach-list');
+  const $achStats = document.getElementById('ach-stats');
+  const $achievements = document.getElementById('achievements');
+  const $panelTabs = document.getElementById('panel-tabs');
+  const $toast = document.getElementById('ach-toast');
+
+  function renderAchievements() {
+    const got = ACHIEVEMENTS.filter(a => unlocked.has(a.id)).length;
+    $achStats.innerHTML =
+      `<span>🏅 ${got}/${ACHIEVEMENTS.length}</span>` +
+      `<span>🧱 ${stats.bricks}</span>` +
+      `<span>🎁 ${stats.powerups}</span>` +
+      `<span>👹 ${stats.bosses}</span>` +
+      `<span>🔥 ×${stats.maxCombo}</span>` +
+      `<span>💎 ${stats.bestScore.toLocaleString('pl-PL')}</span>`;
+    $achList.innerHTML = '';
+    for (const a of ACHIEVEMENTS) {
+      const has = unlocked.has(a.id);
+      const div = document.createElement('div');
+      div.className = 'ach-item' + (has ? ' got' : '');
+      div.innerHTML = `<span class="ach-ic">${a.icon}</span><span class="ach-tx"><b>${a.name}</b><i>${a.desc}</i></span><span class="ach-st">${has ? '✓' : '🔒'}</span>`;
+      $achList.appendChild(div);
+    }
+  }
+
+  const toastQ = [];
+  function toastAchievement(a) { toastQ.push(a); if (toastQ.length === 1) showNextToast(); }
+  function showNextToast() {
+    const a = toastQ[0]; if (!a) return;
+    $toast.innerHTML = `<span class="t-ic">${a.icon}</span><span class="t-tx"><b>OSIĄGNIĘCIE</b><span>${a.name}</span></span>`;
+    $toast.classList.add('show');
+    Audio.power();
+    setTimeout(() => {
+      $toast.classList.remove('show');
+      setTimeout(() => { toastQ.shift(); showNextToast(); }, 420);
+    }, 2600);
+  }
+
+  // ---- Menedżer paneli (TOP 10 / Osiągnięcia) ----
+  let activePanel = 'scores';
+  function setPanel(p) {
+    activePanel = p;
+    $scoreboard.classList.toggle('hidden', p !== 'scores');
+    $achievements.classList.toggle('hidden', p !== 'ach');
+    document.querySelectorAll('#panel-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === p));
+  }
+  function showPanels() {
+    renderScoreboard(lastMeIdx); renderAchievements();
+    $panelTabs.classList.remove('hidden');
+    setPanel(activePanel);
+  }
+  function hidePanels() {
+    $panelTabs.classList.add('hidden');
+    $scoreboard.classList.add('hidden');
+    $achievements.classList.add('hidden');
+  }
+  document.querySelectorAll('#panel-tabs .tab-btn').forEach(b =>
+    b.addEventListener('click', () => setPanel(b.dataset.panel)));
 
   $saveScore.addEventListener('click', commitName);
   $nameInput.addEventListener('keydown', (e) => { if (e.code === 'Enter') { e.preventDefault(); commitName(); } });
@@ -586,6 +684,7 @@
     awaitingName = false;
     $nameEntry.classList.add('hidden');
     renderScoreboard(idx);
+    setPanel('scores'); showPanels();
     $startBtn.classList.remove('start-hidden');
   }
 
@@ -600,8 +699,10 @@
     resetFX();
     paddle.w = 130;
     awaitingName = false;
+    lostThisLevel = false;
+    stats.games++; bumpStats();
     $nameEntry.classList.add('hidden');
-    $scoreboard.classList.add('hidden');
+    hidePanels();
     $startBtn.classList.remove('start-hidden');
     buildLevel();
     resetBallOnPaddle();
@@ -635,6 +736,7 @@
     lives--; updateHUD();
     shake = 18; flash = 0.5; flashHue = 320; combo = 0;
     Audio.lose();
+    lostThisLevel = true;
     if (lives <= 0) { gameOver(); return; }
     resetFX();
     bossShots = [];
@@ -651,13 +753,18 @@
   }
 
   function nextLevel() {
+    // poziom właśnie ukończony — czy bez utraty życia?
+    if (!lostThisLevel) { stats.flawless = true; bumpStats(); }
     if (level >= MAX_LEVEL) {
+      stats.won = true; bumpStats();
       state = State.WIN;
       Audio.win();
       showEndScreen('ZWYCIĘSTWO!', `Opanowałeś wszystkie ${MAX_LEVEL} poziomów`);
       return;
     }
     level++;
+    stats.maxLevel = Math.max(stats.maxLevel, level); bumpStats();
+    lostThisLevel = false;
     powerups = []; rockets = [];
     resetFX();
     buildLevel();
@@ -677,7 +784,7 @@
     if (statsHTML) { $overlayStats.innerHTML = statsHTML; $overlayStats.classList.remove('hidden'); }
     else $overlayStats.classList.add('hidden');
     $nameEntry.classList.add('hidden');
-    $scoreboard.classList.add('hidden');
+    hidePanels();
     $startBtn.textContent = btn || 'START';
     $startBtn.classList.remove('start-hidden');
     $overlay.classList.remove('hidden');
@@ -693,10 +800,13 @@
     $startBtn.textContent = 'JESZCZE RAZ';
     $overlay.classList.remove('hidden');
 
+    // zapis statystyk z gry
+    stats.bestScore = Math.max(stats.bestScore, score); bumpStats();
+
     if (qualifies(score)) {
       awaitingName = true;
       $nameEntry.classList.remove('hidden');
-      $scoreboard.classList.add('hidden');
+      hidePanels();
       $startBtn.classList.add('start-hidden');
       $nameInput.value = '';
       setTimeout(() => $nameInput.focus(), 60);
@@ -704,6 +814,7 @@
       awaitingName = false;
       $nameEntry.classList.add('hidden');
       renderScoreboard(-1);
+      showPanels();
       $startBtn.classList.remove('start-hidden');
     }
   }
@@ -766,6 +877,7 @@
           burst(p.x, p.y, p.def.hue, 22, 1.3);
           floatText(p.x, p.y - 10, p.def.label, p.def.hue);
           paddle.glow = 1;
+          stats.powerups++; bumpStats();
         } else {
           Audio.bad();
           burst(p.x, p.y, 10, 22, 1.3);
@@ -921,6 +1033,7 @@
     if (!br.alive) return;
     br.alive = false;
     const isMult = br.type === 'multiplier';
+    stats.bricks++; if (isMult) stats.multipliers++; bumpStats();
     const pts = (isMult ? 300 : 80) * Math.max(1, br.maxHp);
     addScore(pts);
     const hue = isMult ? 48 : (br.type === 'explosive' ? 18 : br.hue);
@@ -937,6 +1050,7 @@
   // wybuch — niszczy sąsiadów w promieniu (łańcuchowo dla kolejnych wybuchowych)
   function explode(src) {
     Audio.explode();
+    stats.explosives++; bumpStats();
     shake = Math.min(shake + 8, 22); flash = Math.max(flash, 0.32); flashHue = 25;
     const cx = src.x + src.w / 2, cy = src.y + src.h / 2, radius = 80;
     burst(cx, cy, 25, 36, 1.9);
@@ -1461,11 +1575,12 @@
   }
 
   // init
+  onBossDefeated = () => { stats.bosses++; bumpStats(); };
   $musicBtn.classList.add('off');
   $musicBtn.textContent = '🎵 MUZYKA (off)';
   applyTheme(themeKey);
-  renderScoreboard(-1);
-  $scoreboard.classList.remove('hidden'); // pokaż TOP10 na ekranie startowym
+  checkAchievements();            // odblokuj zaległe na bazie zapisanych statystyk
+  showPanels();                   // pokaż TOP10 / osiągnięcia na ekranie startowym
   updateHUD();
   requestAnimationFrame(loop);
 })();

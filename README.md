@@ -69,6 +69,22 @@ Pojawiają się losowo, a ich częstotliwość rośnie wraz z poziomem:
 | ♻ zielona | **Regenerująca** | Jeśli nie dobijesz jej szybko, odbudowuje wytrzymałość |
 | ★ złota | **Mnożnikowa** | Potrójne punkty i **gwarantowany** dobry power-up |
 
+### 🎨 Motywy / skórki
+
+Cztery style do wyboru z menu (zapamiętywane): **NEON**, **VAPORWAVE**, **CRT RETRO** (ze scanline), **MATRIX** (zielony monochrom + scanline). Motyw zmienia tło, gwiazdy, paletkę, piłkę, akcenty i kolory cegieł.
+
+### 👹 Boss co 5. poziom
+
+Poziomy 5, 10, 15, 20, 25 to walki z **bossem**: ma pasek HP (rosnący z poziomem), porusza się i ostrzeliwuje kolczastymi pociskami, które trzeba omijać (trafienie paletki = utrata życia). Ranisz go piłką i rakietami; ognista kula zadaje podwójne obrażenia. Poziom 25 to finałowy boss.
+
+### ✍️ Plansze artystyczne
+
+Co kilka poziomów (3, 8, 13, 18, 23) cegły układają się w napis **LOLEK**.
+
+### 🎖️ Osiągnięcia + statystyki
+
+12 osiągnięć (rozbij 1000 cegieł, combo ×20, pokonaj bossa, ukończ grę, 50 000 pkt...) z powiadomieniami w grze i panelem w menu (zakładka obok TOP 10). Statystyki i odblokowania zapisywane w `localStorage`.
+
 ## 🚀 Uruchomienie
 
 Po prostu otwórz `index.html` w przeglądarce. Nic nie trzeba instalować.
