@@ -728,8 +728,11 @@
   }
 
   function togglePause() {
-    if (state === State.PLAYING) { state = State.PAUSED; showOverlay('PAUZA', 'Naciśnij SPACJĘ / P aby kontynuować', null, 'WZNÓW'); }
-    else if (state === State.PAUSED) { hideOverlay(); state = State.PLAYING; }
+    if (state === State.PLAYING) {
+      state = State.PAUSED;
+      showOverlay('PAUZA', 'Naciśnij SPACJĘ / P aby kontynuować', null, 'WZNÓW');
+      showPanels(); setPanel('ach'); // pokaż bieżący postęp osiągnięć podczas pauzy
+    } else if (state === State.PAUSED) { hideOverlay(); state = State.PLAYING; }
   }
 
   function loseLife() {
