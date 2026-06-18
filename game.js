@@ -52,16 +52,24 @@
   //  Audio — SFX syntezowane + muzyka w tle (Web Audio)
   // ============================================================
   const Audio = (() => {
-    let actx = null, master = null, musicGain = null;
+    let actx = null, master = null, sfx = null, musicGain = null;
     let muted = false, musicOn = false;
     let schedTimer = null, step = 0, nextTime = 0;
+    let trackIdx = 0, intensity = 0;
     const STEP_DUR = 0.2272; // ~110 BPM, ósemka
+    const clampA = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+
+    const VKEY = 'neonBreakoutVol';
+    let vol = { master: 0.7, music: 0.6, sfx: 0.9 };
+    try { vol = Object.assign(vol, JSON.parse(localStorage.getItem(VKEY)) || {}); } catch {}
+    function saveVol() { try { localStorage.setItem(VKEY, JSON.stringify(vol)); } catch {} }
 
     function ensure() {
       if (actx) return;
       actx = new (window.AudioContext || window.webkitAudioContext)();
-      master = actx.createGain(); master.gain.value = 0.5; master.connect(actx.destination);
-      musicGain = actx.createGain(); musicGain.gain.value = 0.0; musicGain.connect(actx.destination);
+      master = actx.createGain(); master.gain.value = muted ? 0 : vol.master; master.connect(actx.destination);
+      sfx = actx.createGain(); sfx.gain.value = vol.sfx; sfx.connect(master);
+      musicGain = actx.createGain(); musicGain.gain.value = 0.0; musicGain.connect(master);
     }
     function resume() { ensure(); if (actx.state === 'suspended') actx.resume(); }
 
@@ -74,60 +82,80 @@
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(vol, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.connect(g); g.connect(master);
+      osc.connect(g); g.connect(sfx);
       osc.start(t); osc.stop(t + dur + 0.02);
     }
-    function noise(dur, vol = 0.25, hp = 800) {
+    function noise(dur, v = 0.25, hp = 800, dest) {
       if (muted) return; resume();
       const t = actx.currentTime;
       const buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate);
       const d = buf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
       const src = actx.createBufferSource(); src.buffer = buf;
-      const g = actx.createGain(); g.gain.value = vol;
+      const g = actx.createGain(); g.gain.value = v;
       const f = actx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp;
-      src.connect(f); f.connect(g); g.connect(master); src.start(t);
+      src.connect(f); f.connect(g); g.connect(dest || sfx); src.start(t);
     }
 
-    // ----- Muzyka: progresja Am - F - C - G, arpeggio + bas + pad -----
-    const BARS = [
-      { root: 110.00, arp: [220.00, 261.63, 329.63, 440.00], pad: [220, 261.63, 329.63] }, // Am
-      { root: 87.31,  arp: [174.61, 220.00, 261.63, 349.23], pad: [174.61, 220, 261.63] }, // F
-      { root: 130.81, arp: [261.63, 329.63, 392.00, 523.25], pad: [261.63, 329.63, 392] }, // C
-      { root: 98.00,  arp: [196.00, 246.94, 293.66, 392.00], pad: [196, 246.94, 293.66] }, // G
+    // ----- Muzyka: 3 utwory (progresje akordów) -----
+    const TRACKS = [
+      { name: 'Synthwave', wave: ['triangle', 'square', 'triangle'], bars: [
+        { root: 110.00, arp: [220.00, 261.63, 329.63, 440.00], pad: [220, 261.63, 329.63] },
+        { root: 87.31, arp: [174.61, 220.00, 261.63, 349.23], pad: [174.61, 220, 261.63] },
+        { root: 130.81, arp: [261.63, 329.63, 392.00, 523.25], pad: [261.63, 329.63, 392] },
+        { root: 98.00, arp: [196.00, 246.94, 293.66, 392.00], pad: [196, 246.94, 293.66] } ] },
+      { name: 'Darkwave', wave: ['sine', 'triangle', 'sawtooth'], bars: [
+        { root: 73.42, arp: [146.83, 174.61, 220.00, 293.66], pad: [146.83, 174.61, 220.00] },
+        { root: 116.54, arp: [116.54, 146.83, 233.08, 293.66], pad: [116.54, 146.83, 174.61] },
+        { root: 87.31, arp: [174.61, 220.00, 261.63, 349.23], pad: [174.61, 220.00, 261.63] },
+        { root: 130.81, arp: [130.81, 164.81, 196.00, 261.63], pad: [130.81, 164.81, 196.00] } ] },
+      { name: 'Drive', wave: ['sawtooth', 'square', 'triangle'], bars: [
+        { root: 82.41, arp: [164.81, 196.00, 246.94, 329.63], pad: [164.81, 196.00, 246.94] },
+        { root: 130.81, arp: [130.81, 164.81, 196.00, 329.63], pad: [130.81, 164.81, 196.00] },
+        { root: 98.00, arp: [196.00, 246.94, 293.66, 392.00], pad: [196.00, 246.94, 293.66] },
+        { root: 73.42, arp: [146.83, 185.00, 220.00, 293.66], pad: [146.83, 185.00, 220.00] } ] }
     ];
-    function mTone(freq, time, dur, type, vol, cut) {
+    function mTone(freq, time, dur, type, v, cut) {
       const osc = actx.createOscillator(), g = actx.createGain(), f = actx.createBiquadFilter();
       osc.type = type; osc.frequency.value = freq;
       f.type = 'lowpass'; f.frequency.value = cut || 2000;
       g.gain.setValueAtTime(0, time);
-      g.gain.linearRampToValueAtTime(vol, time + 0.02);
+      g.gain.linearRampToValueAtTime(v, time + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
       osc.connect(f); f.connect(g); g.connect(musicGain);
       osc.start(time); osc.stop(time + dur + 0.05);
     }
+    function mHat(time, v) {
+      const dur = 0.05;
+      const buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const src = actx.createBufferSource(); src.buffer = buf;
+      const g = actx.createGain(); g.gain.value = v;
+      const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 8000;
+      src.connect(f); f.connect(g); g.connect(musicGain); src.start(time);
+    }
     function playStep(s, time) {
-      const bar = BARS[(s >> 3) % 4];
+      const tr = TRACKS[trackIdx];
+      const bar = tr.bars[(s >> 3) % 4];
       const i = s % 8;
-      // bas co ćwierćnutę
-      if (i % 2 === 0) mTone(bar.root, time, 0.42, 'triangle', 0.34, 600);
-      // arpeggio ósemkami (góra-dół)
+      const cut = 1400 + intensity * 2600;
+      if (i % 2 === 0) mTone(bar.root, time, 0.42, tr.wave[0], 0.34, 600);
       const seq = [0, 1, 2, 3, 2, 1, 0, 1];
-      mTone(bar.arp[seq[i]] * 2, time, 0.22, 'square', 0.06, 2600);
-      mTone(bar.arp[seq[i]], time, 0.26, 'triangle', 0.10, 1800);
-      // pad na początku taktu
+      mTone(bar.arp[seq[i]] * 2, time, 0.22, tr.wave[1], 0.06 + intensity * 0.04, cut);
+      mTone(bar.arp[seq[i]], time, 0.26, tr.wave[2], 0.10, 1800);
       if (i === 0) bar.pad.forEach(f => mTone(f, time, STEP_DUR * 8, 'sawtooth', 0.035, 900));
+      if (intensity > 0.35) mHat(time, 0.03 + intensity * 0.05);
+      if (intensity > 0.7 && i % 2 === 1) mHat(time, 0.04);
     }
     function scheduler() {
-      while (nextTime < actx.currentTime + 0.25) {
-        playStep(step, nextTime);
-        nextTime += STEP_DUR; step++;
-      }
+      while (nextTime < actx.currentTime + 0.25) { playStep(step, nextTime); nextTime += STEP_DUR; step++; }
     }
+    function musicTarget() { return (0.06 + intensity * 0.12) * vol.music * 1.6; }
     function startMusic() {
       resume(); musicOn = true;
       musicGain.gain.cancelScheduledValues(actx.currentTime);
-      musicGain.gain.linearRampToValueAtTime(0.14, actx.currentTime + 1.2);
+      musicGain.gain.linearRampToValueAtTime(musicTarget(), actx.currentTime + 1.2);
       step = 0; nextTime = actx.currentTime + 0.1;
       if (schedTimer) clearInterval(schedTimer);
       schedTimer = setInterval(scheduler, 25);
@@ -144,6 +172,7 @@
       wall() { tone(140, 0.06, 'sine', 0.12); },
       steel() { tone(2200, 0.05, 'square', 0.08, 1500); tone(700, 0.05, 'square', 0.06); },
       power() { tone(520, 0.16, 'triangle', 0.3, 880); tone(660, 0.18, 'sine', 0.2, 1100); },
+      coin() { tone(880, 0.07, 'square', 0.16, 1320); tone(1320, 0.10, 'square', 0.12); },
       bad() { tone(160, 0.3, 'sawtooth', 0.3, 70); noise(0.25, 0.2, 400); },
       rocket() { tone(900, 0.14, 'sawtooth', 0.15, 200); },
       explode() { noise(0.35, 0.35, 200); tone(90, 0.4, 'sawtooth', 0.3, 40); },
@@ -152,8 +181,16 @@
       level() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.22, 'triangle', 0.28), i * 90)); },
       gameover() { [400, 330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.35, 'sawtooth', 0.25), i * 160)); },
       win() { [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'square', 0.25), i * 110)); },
-      toggleMute() { muted = !muted; if (!muted) resume(); return muted; },
+      toggleMute() { muted = !muted; ensure(); master.gain.value = muted ? 0 : vol.master; if (!muted) resume(); return muted; },
       toggleMusic() { if (musicOn) stopMusic(); else startMusic(); return musicOn; },
+      setMaster(v) { vol.master = clampA(v); saveVol(); if (master && !muted) master.gain.value = vol.master; },
+      setMusicVol(v) { vol.music = clampA(v); saveVol(); if (musicOn && musicGain) musicGain.gain.value = musicTarget(); },
+      setSfxVol(v) { vol.sfx = clampA(v); saveVol(); if (sfx) sfx.gain.value = vol.sfx; },
+      setIntensity(x) { intensity = clampA(x); if (musicOn && musicGain) musicGain.gain.value = musicTarget(); },
+      setTrack(i) { trackIdx = ((i % TRACKS.length) + TRACKS.length) % TRACKS.length; },
+      trackName() { return TRACKS[trackIdx].name; },
+      get trackCount() { return TRACKS.length; },
+      get vol() { return vol; },
       get muted() { return muted; },
       get musicOn() { return musicOn; }
     };
@@ -346,6 +383,7 @@
 
   function buildLevel() {
     boss = null; bossShots = [];
+    Audio.setTrack(isBossLevel(level) ? 2 : (level - 1) % 3);
     if (isBossLevel(level)) { buildBossLevel(); return; }
     const word = artWordFor(level);
     if (word) { buildArtLevel(word); return; }
@@ -544,6 +582,17 @@
   document.querySelectorAll('#theme-row .theme-btn').forEach(btn => {
     btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
   });
+  // suwaki głośności
+  const $volMaster = document.getElementById('vol-master');
+  const $volMusic = document.getElementById('vol-music');
+  const $volSfx = document.getElementById('vol-sfx');
+  $volMaster.value = Math.round(Audio.vol.master * 100);
+  $volMusic.value = Math.round(Audio.vol.music * 100);
+  $volSfx.value = Math.round(Audio.vol.sfx * 100);
+  $volMaster.addEventListener('input', () => Audio.setMaster($volMaster.value / 100));
+  $volMusic.addEventListener('input', () => Audio.setMusicVol($volMusic.value / 100));
+  $volSfx.addEventListener('input', () => { Audio.setSfxVol($volSfx.value / 100); });
+  $volSfx.addEventListener('change', () => Audio.power());
 
   // ============================================================
   //  Tabela najlepszych wyników (localStorage)
@@ -894,7 +943,10 @@
     if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0; }
 
     updateBricks(dt);
-    if (state === State.PLAYING) { updateBoss(dt); updateBossShots(dt); }
+    if (state === State.PLAYING) {
+      updateBoss(dt); updateBossShots(dt);
+      Audio.setIntensity(clamp(combo / 14 + (boss && boss.alive ? 0.3 : 0) + (lives <= 1 ? 0.25 : 0), 0, 1));
+    }
 
     // ---- Piłki ----
     if (state === State.READY) {

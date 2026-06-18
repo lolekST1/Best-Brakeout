@@ -317,6 +317,20 @@ html, body {
 }
 
 .mute-row { margin-top: 18px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.volume-row { margin-top: 12px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.volume-row label { display: flex; align-items: center; gap: 6px; font-size: 15px; color: #b9c7ff; }
+.volume-row input[type=range] {
+  -webkit-appearance: none; appearance: none; width: 96px; height: 5px; border-radius: 4px;
+  background: rgba(157, 78, 221, 0.35); outline: none;
+}
+.volume-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); cursor: pointer;
+}
+.volume-row input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px; border: none; border-radius: 50%;
+  background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); cursor: pointer;
+}
 .mini-btn {
   background: transparent;
   border: 1px solid rgba(0, 240, 255, 0.4);
