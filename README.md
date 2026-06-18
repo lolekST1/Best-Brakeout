@@ -85,6 +85,34 @@ Co kilka poziomów (3, 8, 13, 18, 23) cegły układają się w napis **LOLEK**.
 
 12 osiągnięć (rozbij 1000 cegieł, combo ×20, pokonaj bossa, ukończ grę, 50 000 pkt...) z powiadomieniami w grze i panelem w menu (zakładka obok TOP 10). Statystyki i odblokowania zapisywane w `localStorage`.
 
+### 🎮 Tryby gry
+
+**Klasyczny** (25 poziomów) · **Niekończący** · **Na czas** (90 s) · **Jedno życie** · **Grawitacja** (piłka wygina tor).
+
+### 🎯 Wyzwanie dnia
+
+Codziennie inny zestaw modyfikatorów (seedowany datą): szybka piłka, mała paletka, grawitacja, twardsze cegły, chaos bonusów, wielka piłka. Rekord dnia zapisywany lokalnie.
+
+### 🛒 Waluta + sklep
+
+Za grę zdobywasz **monety**. W sklepie (zakładka w menu) kupisz skórki piłki i paletki oraz perki: +1 życie, tarcza/rakiety na start poziomu, podwójne monety.
+
+### 🎵 Audio
+
+Osobne suwaki głośności (master/muzyka/efekty), **3 utwory** (Synthwave/Darkwave/Drive) zmieniane wg poziomu i **dynamiczna muzyka** reagująca na combo i zagrożenie.
+
+### 🍬 Juice + dynamiczne tło
+
+Hit-stop, „punch-zoom", squash paletki, ekran reagujący na combo (mgławica, pierścienie energii).
+
+### ✏️ Edytor planszy
+
+Maluj własną planszę na siatce 13×8 (9 typów cegieł), graj ją i dziel się **kodem** planszy (eksport/import).
+
+### 📲 PWA + udostępnianie
+
+Instalowalna apka działająca **offline** (service worker) oraz przycisk **„Podziel się wynikiem"** (Web Share API / schowek).
+
 ## 🚀 Uruchomienie
 
 Po prostu otwórz `index.html` w przeglądarce. Nic nie trzeba instalować.

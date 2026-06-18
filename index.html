@@ -85,6 +85,7 @@
         <div class="challenge-row">
           <button id="challenge-btn" class="neon-btn small">🎯 WYZWANIE DNIA</button>
           <span id="challenge-info"></span>
+          <button id="editor-btn" class="mini-btn">✏️ EDYTOR PLANSZY</button>
         </div>
 
         <div id="theme-row" class="theme-row">
@@ -112,6 +113,25 @@
           <label>🔊<input id="vol-master" type="range" min="0" max="100" /></label>
           <label>🎵<input id="vol-music" type="range" min="0" max="100" /></label>
           <label>💥<input id="vol-sfx" type="range" min="0" max="100" /></label>
+        </div>
+      </div>
+    </div>
+
+    <div id="editor" class="overlay hidden">
+      <div class="overlay-panel editor-panel">
+        <h2 class="ed-title">EDYTOR PLANSZY</h2>
+        <p class="ed-hint">Wybierz pędzel i maluj na siatce. Zapisz kod, by się podzielić.</p>
+        <div id="ed-palette" class="ed-palette"></div>
+        <div id="ed-grid" class="ed-grid"></div>
+        <div class="ed-actions">
+          <button id="ed-play" class="neon-btn small">▶ GRAJ</button>
+          <button id="ed-clear" class="mini-btn">WYCZYŚĆ</button>
+          <button id="ed-close" class="mini-btn">ZAMKNIJ</button>
+        </div>
+        <div class="ed-code-row">
+          <input id="ed-code" placeholder="kod planszy — skopiuj lub wklej i wczytaj" autocomplete="off" />
+          <button id="ed-export" class="mini-btn">KOPIUJ KOD</button>
+          <button id="ed-import" class="mini-btn">WCZYTAJ</button>
         </div>
       </div>
     </div>

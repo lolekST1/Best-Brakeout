@@ -274,6 +274,7 @@
   let mode = 'classic', endless = false, noLifeLoss = false, timeLeft = 0;
   let mods = { fast: 0, tiny: 0, gravity: 0, tough: 0, chaos: 0, big: 0 };
   let challengeMods = null, challengeKey = null;
+  let customCells = null, startCustom = false; // edytor planszy
 
   // seedowany RNG (mulberry32) dla wyzwania dnia
   function mulberry32(a) {
@@ -431,8 +432,31 @@
     }
   }
 
+  function makeBrickFromCode(c, r, code) {
+    if (!code || code === '.') return null;
+    const x = fieldLeft + c * (brickW + gapX), y = fieldTop + r * (brickH + gapY);
+    const br = { x, y, w: brickW, h: brickH, hp: 1, maxHp: 1, hue: ((r / ROWS) * 280 + 180) % 360, alive: true, hit: 0, type: 'normal', vx: 0, originX: x, range: 0, regen: 0, heal: 0, pulse: rand(0, TAU) };
+    if (code === '2') { br.hp = br.maxHp = 2; }
+    else if (code === '3') { br.hp = br.maxHp = 3; }
+    else if (code === 'S') { br.type = 'steel'; }
+    else if (code === 'X') { br.type = 'explosive'; }
+    else if (code === 'M') { br.type = 'moving'; br.vx = (Math.random() < 0.5 ? -1 : 1) * 1.2; br.range = brickW + gapX; }
+    else if (code === 'R') { br.type = 'regen'; br.hp = br.maxHp = 2; }
+    else if (code === 'G') { br.type = 'multiplier'; }
+    return br;
+  }
+  function buildCustomLevel() {
+    bricks = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const br = makeBrickFromCode(c, r, customCells[r * COLS + c]);
+        if (br) bricks.push(br);
+      }
+  }
+
   function buildLevel() {
     boss = null; bossShots = [];
+    if (mode === 'custom' && customCells) { Audio.setTrack(0); buildCustomLevel(); return; }
     Audio.setTrack(isBossLevel(level) ? 2 : (level - 1) % 3);
     if (isBossLevel(level)) { buildBossLevel(); return; }
     const word = artWordFor(level);
@@ -671,6 +695,92 @@
     startGame();
   });
 
+  // ============================================================
+  //  Edytor planszy
+  // ============================================================
+  const EBRUSHES = [
+    { code: '.', name: 'Pusto', col: 'transparent', label: '' },
+    { code: '1', name: 'HP1', col: '#00d6ff', label: '' },
+    { code: '2', name: 'HP2', col: '#5aa0ff', label: '2' },
+    { code: '3', name: 'HP3', col: '#9d7bff', label: '3' },
+    { code: 'S', name: 'Stal', col: '#9aa6b4', label: 'S' },
+    { code: 'X', name: 'Bomba', col: '#ff7a1f', label: '💥' },
+    { code: 'M', name: 'Ruch', col: '#ff5db0', label: '↔' },
+    { code: 'R', name: 'Regen', col: '#39d65a', label: '♻' },
+    { code: 'G', name: 'Złota', col: '#ffd23a', label: '★' },
+  ];
+  const codeMeta = (c) => EBRUSHES.find(b => b.code === c) || EBRUSHES[0];
+  let edBrush = '1', edPainting = false;
+  let edCells = new Array(COLS * ROWS).fill('.');
+  const $edGrid = document.getElementById('ed-grid');
+  const $edPalette = document.getElementById('ed-palette');
+  const $edCode = document.getElementById('ed-code');
+  const $editor = document.getElementById('editor');
+  const edCellEls = [];
+
+  EBRUSHES.forEach(b => {
+    const el = document.createElement('button');
+    el.className = 'ed-brush' + (b.code === edBrush ? ' active' : '');
+    el.dataset.code = b.code;
+    el.innerHTML = `<span class="sw" style="background:${b.col === 'transparent' ? 'rgba(255,255,255,0.1)' : b.col}"></span>${b.name}`;
+    el.addEventListener('click', () => {
+      edBrush = b.code;
+      document.querySelectorAll('#ed-palette .ed-brush').forEach(x => x.classList.toggle('active', x.dataset.code === edBrush));
+    });
+    $edPalette.appendChild(el);
+  });
+
+  function styleCell(i) {
+    const m = codeMeta(edCells[i]);
+    const el = edCellEls[i];
+    el.style.background = m.col === 'transparent' ? 'rgba(255,255,255,0.04)' : m.col;
+    el.textContent = m.label;
+  }
+  for (let i = 0; i < COLS * ROWS; i++) {
+    const el = document.createElement('div');
+    el.className = 'ed-cell'; el.dataset.i = i;
+    edCellEls.push(el); $edGrid.appendChild(el);
+    styleCell(i);
+  }
+  function paintAt(i) { if (i >= 0 && i < edCells.length && edCells[i] !== edBrush) { edCells[i] = edBrush; styleCell(i); } }
+  $edGrid.addEventListener('pointerdown', (e) => {
+    const t = e.target.closest('.ed-cell'); if (!t) return;
+    e.preventDefault(); edPainting = true; paintAt(+t.dataset.i);
+  });
+  $edGrid.addEventListener('pointermove', (e) => {
+    if (!edPainting) return;
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    if (t && t.classList.contains('ed-cell')) paintAt(+t.dataset.i);
+  });
+  window.addEventListener('pointerup', () => edPainting = false);
+
+  function edEncode() { try { return btoa(edCells.join('')); } catch { return ''; } }
+  function edDecode(str) {
+    try {
+      const s = atob(str.trim());
+      if (s.length !== COLS * ROWS || !/^[.123SXMRG]+$/.test(s)) return false;
+      edCells = s.split(''); for (let i = 0; i < edCells.length; i++) styleCell(i); return true;
+    } catch { return false; }
+  }
+
+  document.getElementById('editor-btn').addEventListener('click', () => { $editor.classList.remove('hidden'); });
+  document.getElementById('ed-close').addEventListener('click', () => { $editor.classList.add('hidden'); });
+  document.getElementById('ed-clear').addEventListener('click', () => { edCells.fill('.'); for (let i = 0; i < edCells.length; i++) styleCell(i); });
+  document.getElementById('ed-export').addEventListener('click', () => {
+    const code = edEncode(); $edCode.value = code;
+    try { navigator.clipboard.writeText(code); } catch {}
+    $edCode.select();
+  });
+  document.getElementById('ed-import').addEventListener('click', () => {
+    if (edDecode($edCode.value)) Audio.power(); else { $edCode.value = ''; $edCode.placeholder = 'błędny kod!'; }
+  });
+  document.getElementById('ed-play').addEventListener('click', () => {
+    if (edCells.every(c => c === '.')) { $edCode.placeholder = 'narysuj coś najpierw!'; return; }
+    customCells = edCells.slice(); startCustom = true;
+    $editor.classList.add('hidden');
+    startGame();
+  });
+
   // podziel się wynikiem (Web Share API + fallback do schowka)
   const $shareBtn = document.getElementById('share-btn');
   $shareBtn.addEventListener('click', async () => {
@@ -902,10 +1012,12 @@
   function resetFX() { for (const k in FX) FX[k] = 0; }
 
   function startGame() {
-    // konfiguracja trybu (lub wyzwania)
-    const isChallenge = !!challengeMods;
-    const cfg = isChallenge ? { lives: 3, gravity: 0, time: 0, endless: true } : MODES[selectedMode];
-    mode = isChallenge ? 'challenge' : selectedMode;
+    // konfiguracja trybu (custom / wyzwanie / standardowy)
+    const isCustom = startCustom; startCustom = false;
+    const isChallenge = !isCustom && !!challengeMods;
+    const cfg = isCustom ? { lives: 3, gravity: 0, time: 0, endless: false }
+      : isChallenge ? { lives: 3, gravity: 0, time: 0, endless: true } : MODES[selectedMode];
+    mode = isCustom ? 'custom' : (isChallenge ? 'challenge' : selectedMode);
     mods = Object.assign({ fast: 0, tiny: 0, gravity: 0, tough: 0, chaos: 0, big: 0 }, isChallenge ? challengeMods : {});
     endless = !!cfg.endless;
     noLifeLoss = !!cfg.noLifeLoss;
@@ -984,6 +1096,11 @@
   }
 
   function nextLevel() {
+    if (mode === 'custom') { // własna plansza = pojedynczy poziom
+      state = State.WIN; Audio.win();
+      showEndScreen('UKOŃCZONO!', 'Twoja plansza pokonana 🎉');
+      return;
+    }
     // poziom właśnie ukończony — czy bez utraty życia?
     if (!lostThisLevel) { stats.flawless = true; bumpStats(); }
     if (!endless && level >= MAX_LEVEL) {
