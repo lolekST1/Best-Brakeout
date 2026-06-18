@@ -277,6 +277,30 @@ html, body {
 .ach-st { font-size: 15px; }
 .ach-item.got .ach-st { color: var(--neon-cyan); }
 
+/* ---------- Sklep ---------- */
+.shop { max-width: 440px; margin: 0 auto 22px; }
+.shop-coins { font-family: 'Orbitron', sans-serif; font-size: 18px; color: #ffd86b; margin-bottom: 14px; text-shadow: 0 0 12px rgba(255,200,60,0.5); }
+.shop-coins b { font-size: 22px; }
+.shop-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+.shop-item {
+  display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 10px; text-align: left;
+  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(157, 78, 221, 0.22);
+}
+.shop-item.owned { border-color: rgba(0, 240, 255, 0.4); }
+.shop-ic { font-size: 20px; text-align: center; }
+.shop-tx { display: flex; flex-direction: column; line-height: 1.2; }
+.shop-tx b { font-family: 'Rajdhani', sans-serif; font-size: 15px; color: #fff; }
+.shop-tx i { font-style: normal; font-size: 11px; color: #9fb0d8; }
+.shop-buy, .shop-equip {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 0.5px;
+  color: #04121a; background: var(--neon-cyan); border: none; border-radius: 8px;
+  padding: 7px 12px; cursor: pointer; white-space: nowrap;
+}
+.shop-equip { background: var(--neon-magenta); }
+.shop-buy:disabled { background: rgba(120,130,160,0.4); color: #cdd; cursor: not-allowed; }
+.shop-on { font-size: 13px; color: var(--neon-cyan); font-weight: 700; white-space: nowrap; }
+
 /* ---------- Toast osiągnięcia ---------- */
 #ach-toast {
   position: absolute; top: 90px; left: 50%;

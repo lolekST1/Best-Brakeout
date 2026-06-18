@@ -779,16 +779,86 @@
     }, 2600);
   }
 
-  // ---- Menedżer paneli (TOP 10 / Osiągnięcia) ----
+  // ============================================================
+  //  Waluta + sklep
+  // ============================================================
+  let coins = 0;
+  try { coins = parseInt(localStorage.getItem('neonBreakoutCoins')) || 0; } catch {}
+  let shop = { owned: ['ball_default', 'pad_default'], ball: 'ball_default', pad: 'pad_default', perks: [] };
+  try { shop = Object.assign(shop, JSON.parse(localStorage.getItem('neonBreakoutShop')) || {}); } catch {}
+  function saveCoins() { try { localStorage.setItem('neonBreakoutCoins', coins); } catch {} }
+  function saveShop() { try { localStorage.setItem('neonBreakoutShop', JSON.stringify(shop)); } catch {} }
+
+  const SHOP_ITEMS = [
+    { id: 'ball_default', type: 'ball', name: 'Klasyczna', price: 0, ball: null },
+    { id: 'ball_gold', type: 'ball', name: 'Złota kula', price: 300, ball: ['#fff', '#ffe28a', '#ff9d00'], glow: '#ffcf5a', trail: 45 },
+    { id: 'ball_plasma', type: 'ball', name: 'Plazma', price: 500, ball: ['#fff', '#ff8af0', '#a020ff'], glow: '#ff8af0', trail: 300 },
+    { id: 'ball_toxic', type: 'ball', name: 'Toksyna', price: 500, ball: ['#fff', '#c6ff6a', '#39c000'], glow: '#aaff39', trail: 110 },
+    { id: 'pad_default', type: 'pad', name: 'Klasyczna', price: 0, pad: null },
+    { id: 'pad_gold', type: 'pad', name: 'Złota paletka', price: 400, pad: ['#fff3c0', '#ffc83a', '#a06a00'], glow: '#ffc83a', end: '#ff7a00' },
+    { id: 'pad_ice', type: 'pad', name: 'Lód', price: 400, pad: ['#ffffff', '#bdf0ff', '#3aa0d6'], glow: '#bdf0ff', end: '#7affff' },
+    { id: 'perk_life', type: 'perk', name: '+1 życie na start', price: 800 },
+    { id: 'perk_shield', type: 'perk', name: 'Tarcza na start poziomu', price: 700 },
+    { id: 'perk_rockets', type: 'perk', name: 'Rakiety na start poziomu', price: 700 },
+    { id: 'perk_double', type: 'perk', name: 'Podwójne monety', price: 1000 },
+  ];
+  const itemById = (id) => SHOP_ITEMS.find(i => i.id === id);
+  const ownsPerk = (id) => shop.owned.includes(id);
+  function ballStyle() { const it = itemById(shop.ball); return it && it.ball ? it : null; }
+  function padStyle() { const it = itemById(shop.pad); return it && it.pad ? it : null; }
+
+  const $shop = document.getElementById('shop');
+  const $shopList = document.getElementById('shop-list');
+  const $shopCoins = document.getElementById('shop-coins');
+  function renderShop() {
+    $shopCoins.innerHTML = `🪙 <b>${coins.toLocaleString('pl-PL')}</b> monet`;
+    $shopList.innerHTML = '';
+    for (const it of SHOP_ITEMS) {
+      const owned = shop.owned.includes(it.id);
+      const equipped = (it.type === 'ball' && shop.ball === it.id) || (it.type === 'pad' && shop.pad === it.id);
+      let btn;
+      if (!owned) btn = `<button class="shop-buy" data-id="${it.id}" ${coins < it.price ? 'disabled' : ''}>Kup · ${it.price}🪙</button>`;
+      else if (it.type === 'perk') btn = `<span class="shop-on">✓ aktywny</span>`;
+      else if (equipped) btn = `<span class="shop-on">✓ założone</span>`;
+      else btn = `<button class="shop-equip" data-id="${it.id}">Wybierz</button>`;
+      const icon = it.type === 'perk' ? '⭐' : (it.type === 'ball' ? '⬤' : '▬');
+      const div = document.createElement('div');
+      div.className = 'shop-item' + (owned ? ' owned' : '');
+      div.innerHTML = `<span class="shop-ic">${icon}</span><span class="shop-tx"><b>${it.name}</b><i>${it.type === 'perk' ? 'bonus' : (it.type === 'ball' ? 'skórka piłki' : 'skórka paletki')}</i></span>${btn}`;
+      $shopList.appendChild(div);
+    }
+  }
+  $shopList.addEventListener('click', (e) => {
+    const buy = e.target.closest('.shop-buy'); const eq = e.target.closest('.shop-equip');
+    if (buy) {
+      const it = itemById(buy.dataset.id);
+      if (it && coins >= it.price && !shop.owned.includes(it.id)) {
+        coins -= it.price; shop.owned.push(it.id);
+        if (it.type === 'ball') shop.ball = it.id;
+        if (it.type === 'pad') shop.pad = it.id;
+        saveCoins(); saveShop(); Audio.coin(); renderShop();
+      }
+    } else if (eq) {
+      const it = itemById(eq.dataset.id);
+      if (it && shop.owned.includes(it.id)) {
+        if (it.type === 'ball') shop.ball = it.id;
+        if (it.type === 'pad') shop.pad = it.id;
+        saveShop(); Audio.power(); renderShop();
+      }
+    }
+  });
+
+  // ---- Menedżer paneli (TOP 10 / Osiągnięcia / Sklep) ----
   let activePanel = 'scores';
   function setPanel(p) {
     activePanel = p;
     $scoreboard.classList.toggle('hidden', p !== 'scores');
     $achievements.classList.toggle('hidden', p !== 'ach');
+    $shop.classList.toggle('hidden', p !== 'shop');
     document.querySelectorAll('#panel-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === p));
   }
   function showPanels() {
-    renderScoreboard(lastMeIdx); renderAchievements();
+    renderScoreboard(lastMeIdx); renderAchievements(); renderShop();
     $panelTabs.classList.remove('hidden');
     setPanel(activePanel);
   }
@@ -796,6 +866,7 @@
     $panelTabs.classList.add('hidden');
     $scoreboard.classList.add('hidden');
     $achievements.classList.add('hidden');
+    $shop.classList.add('hidden');
   }
   document.querySelectorAll('#panel-tabs .tab-btn').forEach(b =>
     b.addEventListener('click', () => setPanel(b.dataset.panel)));
@@ -830,7 +901,7 @@
     gravity = cfg.gravity + (mods.gravity ? 0.14 : 0);
     timeLeft = cfg.time ? cfg.time * 60 : 0;
 
-    score = 0; lives = cfg.lives; level = 1; combo = 0;
+    score = 0; lives = cfg.lives + (ownsPerk('perk_life') ? 1 : 0); level = 1; combo = 0;
     powerups = []; particles = []; floats = []; rockets = [];
     resetFX();
     paddle.w = 130;
@@ -841,10 +912,16 @@
     hidePanels();
     $startBtn.classList.remove('start-hidden');
     buildLevel();
+    applyLevelStartPerks();
     resetBallOnPaddle();
     updateHUD();
     hideOverlay();
     state = State.READY;
+  }
+
+  function applyLevelStartPerks() {
+    if (ownsPerk('perk_shield')) grant('shield', 480);
+    if (ownsPerk('perk_rockets')) grant('rockets', 420);
   }
 
   function resetBallOnPaddle() {
@@ -910,6 +987,7 @@
     powerups = []; rockets = [];
     resetFX();
     buildLevel();
+    applyLevelStartPerks();
     resetBallOnPaddle();
     updateHUD();
     Audio.level();
@@ -937,8 +1015,13 @@
     $overlayTitle.textContent = title;
     $overlayTitle.setAttribute('data-text', title);
     $overlaySub.textContent = sub;
+    // naliczenie monet
+    let earned = Math.floor(score / 100) + (level - 1) * 5;
+    if (ownsPerk('perk_double')) earned *= 2;
+    coins += earned; saveCoins();
+    if (earned > 0) Audio.coin();
     const modeNote = mode === 'challenge' ? '🎯 wyzwanie dnia' : (MODES[mode] ? MODES[mode].label : '');
-    $overlayStats.innerHTML = `<div><span class="big">${score.toLocaleString('pl-PL')}</span></div><div>poziom ${level} · ${modeNote}</div>`;
+    $overlayStats.innerHTML = `<div><span class="big">${score.toLocaleString('pl-PL')}</span></div><div>poziom ${level} · ${modeNote}</div><div style="color:#ffd86b;margin-top:6px">🪙 +${earned} monet (masz ${coins.toLocaleString('pl-PL')})</div>`;
     $overlayStats.classList.remove('hidden');
     $startBtn.textContent = 'JESZCZE RAZ';
     $overlay.classList.remove('hidden');
@@ -1569,12 +1652,14 @@
       const sx = 1 + paddle.squash * 0.16, sy = 1 - paddle.squash * 0.32;
       ctx.translate(x + w / 2, y + h); ctx.scale(sx, sy); ctx.translate(-(x + w / 2), -(y + h));
     }
+    const ps = padStyle();
+    const pCols = ps ? ps.pad : T.paddle, pGlow = ps ? ps.glow : T.paddleGlow, pEnd = ps ? ps.end : T.paddleEnd;
     const danger = FX.shrink > 0 || FX.reverse > 0;
-    ctx.shadowColor = danger ? '#ff3b6b' : T.paddleGlow;
+    ctx.shadowColor = danger ? '#ff3b6b' : pGlow;
     ctx.shadowBlur = 22 + paddle.glow * 24;
     const grad = ctx.createLinearGradient(x, y, x, y + h);
     if (danger) { grad.addColorStop(0, '#ffb3c6'); grad.addColorStop(0.5, '#ff3b6b'); grad.addColorStop(1, '#aa1133'); }
-    else { grad.addColorStop(0, T.paddle[0]); grad.addColorStop(0.5, T.paddle[1]); grad.addColorStop(1, T.paddle[2]); }
+    else { grad.addColorStop(0, pCols[0]); grad.addColorStop(0.5, pCols[1]); grad.addColorStop(1, pCols[2]); }
     ctx.fillStyle = grad; roundRect(x, y, w, h, h / 2); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.fillStyle = `rgba(255,255,255,${0.5 + paddle.glow * 0.4})`;
@@ -1585,26 +1670,28 @@
       roundRect(x + 8, y - 5, 8, 6, 2); ctx.fill();
       roundRect(x + w - 16, y - 5, 8, 6, 2); ctx.fill();
     }
-    ctx.fillStyle = T.paddleEnd; ctx.shadowColor = T.paddleEnd; ctx.shadowBlur = 14;
+    ctx.fillStyle = pEnd; ctx.shadowColor = pEnd; ctx.shadowBlur = 14;
     roundRect(x, y, 6, h, 3); ctx.fill(); roundRect(x + w - 6, y, 6, h, 3); ctx.fill();
     ctx.restore();
   }
 
   function drawBalls() {
+    const bs = ballStyle();
+    const bCols = bs ? bs.ball : T.ball, bGlow = bs ? bs.glow : T.ballGlow, bTrail = bs ? bs.trail : T.ballTrail;
     for (const b of balls) {
       const fire = FX.fireball > 0;
       for (let i = 0; i < b.trail.length; i++) {
         const t = b.trail[i], a = i / b.trail.length;
         ctx.globalAlpha = a * 0.5;
-        ctx.fillStyle = fire ? hsl(20 + i * 3, 100, 60) : hsl(T.ballTrail + i * 4, 100, 65);
+        ctx.fillStyle = fire ? hsl(20 + i * 3, 100, 60) : hsl(bTrail + i * 4, 100, 65);
         ctx.beginPath(); ctx.arc(t.x, t.y, b.r * a * 0.9, 0, TAU); ctx.fill();
       }
       ctx.globalAlpha = 1;
       ctx.save();
-      ctx.shadowColor = fire ? '#ffae42' : T.ballGlow; ctx.shadowBlur = 24;
+      ctx.shadowColor = fire ? '#ffae42' : bGlow; ctx.shadowBlur = 24;
       const g = ctx.createRadialGradient(b.x - 2, b.y - 2, 1, b.x, b.y, b.r);
       if (fire) { g.addColorStop(0, '#fff'); g.addColorStop(0.5, '#ffd86b'); g.addColorStop(1, '#ff5a1f'); }
-      else { g.addColorStop(0, T.ball[0]); g.addColorStop(0.5, T.ball[1]); g.addColorStop(1, T.ball[2]); }
+      else { g.addColorStop(0, bCols[0]); g.addColorStop(0.5, bCols[1]); g.addColorStop(1, bCols[2]); }
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
       ctx.restore();
     }
