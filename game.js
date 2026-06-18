@@ -260,6 +260,52 @@
   }
 
   // ============================================================
+  //  Tryby gry + wyzwania + modyfikatory
+  // ============================================================
+  const MODES = {
+    classic:    { label: 'Klasyczny', desc: '25 poziomów, 3 życia', lives: 3, gravity: 0, time: 0, endless: false },
+    endless:    { label: 'Niekończący', desc: 'Bez końca, rosnąca trudność', lives: 3, gravity: 0, time: 0, endless: true },
+    timeattack: { label: 'Na czas', desc: '90 s — maksimum punktów', lives: 99, gravity: 0, time: 90, endless: true, noLifeLoss: true },
+    onelife:    { label: 'Jedno życie', desc: 'Jeden błąd i koniec', lives: 1, gravity: 0, time: 0, endless: false },
+    gravity:    { label: 'Grawitacja', desc: 'Piłka wygina tor w dół', lives: 3, gravity: 0.14, time: 0, endless: false },
+  };
+  let selectedMode = 'classic';
+  try { const m = localStorage.getItem('neonBreakoutMode'); if (m && MODES[m]) selectedMode = m; } catch {}
+  let mode = 'classic', endless = false, noLifeLoss = false, timeLeft = 0;
+  let mods = { fast: 0, tiny: 0, gravity: 0, tough: 0, chaos: 0, big: 0 };
+  let challengeMods = null, challengeKey = null;
+
+  // seedowany RNG (mulberry32) dla wyzwania dnia
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function dateSeed(d) { return (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) | 0; }
+  const MOD_POOL = [
+    { k: 'fast', icon: '»»', name: 'Szybka piłka' },
+    { k: 'tiny', icon: '><', name: 'Mała paletka' },
+    { k: 'gravity', icon: '⬇', name: 'Grawitacja' },
+    { k: 'tough', icon: '🧱', name: 'Twardsze cegły' },
+    { k: 'chaos', icon: '🎲', name: 'Chaos bonusów' },
+    { k: 'big', icon: '⬤', name: 'Wielka piłka' },
+  ];
+  function buildDailyMods(seed) {
+    const r = mulberry32(seed);
+    const pool = MOD_POOL.slice();
+    const picked = {};
+    const n = 2 + Math.floor(r() * 2); // 2-3 modyfikatory
+    for (let i = 0; i < n && pool.length; i++) {
+      const idx = Math.floor(r() * pool.length);
+      picked[pool.splice(idx, 1)[0].k] = 1;
+    }
+    return picked;
+  }
+
+  // ============================================================
   //  Tło — gwiazdy paralaksy
   // ============================================================
   const stars = [];
@@ -307,15 +353,17 @@
     let s = BASE_SPEED + (level - 1) * 0.3;
     if (FX.slow > 0) s *= 0.66;
     if (FX.speedup > 0) s *= 1.5;
+    if (mods.fast) s *= 1.3;
     return s;
   }
   function paddleTargetW() {
     let w = 130;
     if (FX.wide > 0) w *= 1.6;
     if (FX.shrink > 0) w *= 0.58;
+    if (mods.tiny) w *= 0.62;
     return w;
   }
-  function ballRadius() { return FX.big > 0 ? 15 : 9; }
+  function ballRadius() { return (FX.big > 0 || mods.big) ? 15 : 9; }
 
   // ============================================================
   //  Poziomy (proceduralne wzory)
@@ -396,7 +444,7 @@
       for (let c = 0; c < COLS; c++) {
         let hp = pat(c, r);
         if (hp <= 0) continue;
-        hp += extra;
+        hp += extra; if (mods.tough) hp += 1;
         const x = fieldLeft + c * (brickW + gapX);
         const y = fieldTop + r * (brickH + gapY);
         const type = rollBrickType();
@@ -466,9 +514,9 @@
   }
 
   function spawnPowerup(x, y) {
-    const spawnChance = 0.20 + combo * 0.008;
+    const spawnChance = 0.20 + combo * 0.008 + (mods.chaos ? 0.18 : 0);
     if (Math.random() > spawnChance) return;
-    const badChance = Math.min(0.14 + level * 0.012, 0.34);
+    const badChance = Math.min(0.14 + level * 0.012 + (mods.chaos ? 0.10 : 0), 0.40);
     const bad = Math.random() < badChance;
     const def = bad ? BAD[(Math.random() * BAD.length) | 0] : GOOD[(Math.random() * GOOD.length) | 0];
     powerups.push({ x, y, vy: bad ? 3.0 : 2.4, r: 16, def, good: !bad, spin: rand(0, TAU), pulse: 0 });
@@ -595,6 +643,33 @@
   $volMusic.addEventListener('input', () => Audio.setMusicVol($volMusic.value / 100));
   $volSfx.addEventListener('input', () => { Audio.setSfxVol($volSfx.value / 100); });
   $volSfx.addEventListener('change', () => Audio.power());
+
+  // wybór trybu gry
+  function setMode(m) {
+    if (!MODES[m]) return;
+    selectedMode = m; challengeMods = null; challengeKey = null;
+    try { localStorage.setItem('neonBreakoutMode', m); } catch {}
+    document.querySelectorAll('#mode-row .mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  }
+  document.querySelectorAll('#mode-row .mode-btn').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  setMode(selectedMode);
+
+  // wyzwanie dnia
+  const $challengeInfo = document.getElementById('challenge-info');
+  function refreshChallengeInfo() {
+    const m = buildDailyMods(dateSeed(new Date()));
+    const names = MOD_POOL.filter(p => m[p.k]).map(p => p.icon + ' ' + p.name).join(' · ');
+    let best = '';
+    try { const d = JSON.parse(localStorage.getItem('neonBreakoutDaily') || '{}'); const k = 'd' + dateSeed(new Date()); if (d[k]) best = ' · rekord ' + d[k].toLocaleString('pl-PL'); } catch {}
+    $challengeInfo.textContent = 'Dziś: ' + names + best;
+  }
+  refreshChallengeInfo();
+  document.getElementById('challenge-btn').addEventListener('click', () => {
+    const seed = dateSeed(new Date());
+    challengeKey = 'd' + seed;
+    challengeMods = buildDailyMods(seed);
+    startGame();
+  });
 
   // ============================================================
   //  Tabela najlepszych wyników (localStorage)
@@ -745,7 +820,17 @@
   function resetFX() { for (const k in FX) FX[k] = 0; }
 
   function startGame() {
-    score = 0; lives = 3; level = 1; combo = 0;
+    // konfiguracja trybu (lub wyzwania)
+    const isChallenge = !!challengeMods;
+    const cfg = isChallenge ? { lives: 3, gravity: 0, time: 0, endless: true } : MODES[selectedMode];
+    mode = isChallenge ? 'challenge' : selectedMode;
+    mods = Object.assign({ fast: 0, tiny: 0, gravity: 0, tough: 0, chaos: 0, big: 0 }, isChallenge ? challengeMods : {});
+    endless = !!cfg.endless;
+    noLifeLoss = !!cfg.noLifeLoss;
+    gravity = cfg.gravity + (mods.gravity ? 0.14 : 0);
+    timeLeft = cfg.time ? cfg.time * 60 : 0;
+
+    score = 0; lives = cfg.lives; level = 1; combo = 0;
     powerups = []; particles = []; floats = []; rockets = [];
     resetFX();
     paddle.w = 130;
@@ -787,9 +872,12 @@
   }
 
   function loseLife() {
-    lives--; updateHUD();
     shake = 18; flash = 0.5; flashHue = 320; combo = 0;
     Audio.lose();
+    if (noLifeLoss) { // tryb na czas — bez utraty życia, szybki respawn
+      bossShots = []; resetBallOnPaddle(); state = State.READY; return;
+    }
+    lives--; updateHUD();
     lostThisLevel = true;
     if (lives <= 0) { gameOver(); return; }
     resetFX();
@@ -809,7 +897,7 @@
   function nextLevel() {
     // poziom właśnie ukończony — czy bez utraty życia?
     if (!lostThisLevel) { stats.flawless = true; bumpStats(); }
-    if (level >= MAX_LEVEL) {
+    if (!endless && level >= MAX_LEVEL) {
       stats.won = true; bumpStats();
       state = State.WIN;
       Audio.win();
@@ -849,13 +937,21 @@
     $overlayTitle.textContent = title;
     $overlayTitle.setAttribute('data-text', title);
     $overlaySub.textContent = sub;
-    $overlayStats.innerHTML = `<div><span class="big">${score.toLocaleString('pl-PL')}</span></div><div>poziom ${level}</div>`;
+    const modeNote = mode === 'challenge' ? '🎯 wyzwanie dnia' : (MODES[mode] ? MODES[mode].label : '');
+    $overlayStats.innerHTML = `<div><span class="big">${score.toLocaleString('pl-PL')}</span></div><div>poziom ${level} · ${modeNote}</div>`;
     $overlayStats.classList.remove('hidden');
     $startBtn.textContent = 'JESZCZE RAZ';
     $overlay.classList.remove('hidden');
 
     // zapis statystyk z gry
     stats.bestScore = Math.max(stats.bestScore, score); bumpStats();
+    // najlepszy wynik wyzwania dnia
+    if (mode === 'challenge' && challengeKey) {
+      try {
+        const d = JSON.parse(localStorage.getItem('neonBreakoutDaily') || '{}');
+        if (!d[challengeKey] || score > d[challengeKey]) { d[challengeKey] = score; localStorage.setItem('neonBreakoutDaily', JSON.stringify(d)); }
+      } catch {}
+    }
 
     if (qualifies(score)) {
       awaitingName = true;
@@ -949,7 +1045,8 @@
     updateBricks(dt);
     if (state === State.PLAYING) {
       updateBoss(dt); updateBossShots(dt);
-      Audio.setIntensity(clamp(combo / 14 + (boss && boss.alive ? 0.3 : 0) + (lives <= 1 ? 0.25 : 0), 0, 1));
+      Audio.setIntensity(clamp(combo / 14 + (boss && boss.alive ? 0.3 : 0) + (lives <= 1 ? 0.25 : 0) + (timeLeft > 0 && timeLeft < 600 ? 0.3 : 0), 0, 1));
+      if (timeLeft > 0) { timeLeft -= dt; if (timeLeft <= 0) { timeLeft = 0; gameOver(); return; } }
     }
 
     // ---- Piłki ----
@@ -1283,6 +1380,7 @@
     drawParticles();
     drawFloats();
     drawActiveFX();
+    drawModeHUD();
     if (state === State.READY) drawReadyHint(time);
 
     ctx.restore();
@@ -1594,6 +1692,26 @@
     fireball: ['🔥', 25], big: ['⬤', 270], magnet: ['🧲', 330], shield: ['🛡', 180], double: ['2×', 55],
     shrink: ['><', 0], speedup: ['»', 0], reverse: ['⇄', 0]
   };
+  function drawModeHUD() {
+    if (mode === 'classic' && !endless) return;
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (timeLeft > 0) {
+      const sec = Math.ceil(timeLeft / 60);
+      const warn = sec <= 10;
+      ctx.font = 'bold 30px Orbitron, sans-serif';
+      ctx.fillStyle = warn ? '#ff5d8f' : '#fff';
+      ctx.shadowColor = warn ? '#ff00e6' : T.accentColor; ctx.shadowBlur = 16;
+      ctx.fillText('⏱ ' + sec, W / 2, 52);
+    }
+    const labels = { endless: '∞ NIEKOŃCZĄCY', timeattack: '⏱ NA CZAS', onelife: '☠ JEDNO ŻYCIE', gravity: '⬇ GRAWITACJA', challenge: '🎯 WYZWANIE' };
+    if (labels[mode]) {
+      ctx.font = '12px Orbitron, sans-serif';
+      ctx.fillStyle = 'rgba(185,199,255,0.7)'; ctx.shadowBlur = 0;
+      ctx.fillText(labels[mode], W / 2, timeLeft > 0 ? 74 : 50);
+    }
+    ctx.restore();
+  }
   function drawActiveFX() {
     let x = 14;
     const y = H - 26;

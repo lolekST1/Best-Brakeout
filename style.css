@@ -315,6 +315,19 @@ html, body {
   color: #04121a; background: var(--neon-cyan); border-color: var(--neon-cyan);
   box-shadow: 0 0 16px var(--neon-cyan);
 }
+.mode-btn {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1.5px;
+  color: #cfe4ff; background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(157, 78, 221, 0.4); border-radius: 8px;
+  padding: 7px 14px; cursor: pointer; transition: all 0.18s;
+}
+.mode-btn:hover { border-color: var(--neon-magenta); color: #fff; }
+.mode-btn.active {
+  color: #1a0312; background: var(--neon-magenta); border-color: var(--neon-magenta);
+  box-shadow: 0 0 16px var(--neon-magenta);
+}
+.challenge-row { margin: 4px 0 18px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#challenge-info { font-size: 13px; color: #ffd86b; letter-spacing: 0.5px; min-height: 16px; }
 
 .mute-row { margin-top: 18px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .volume-row { margin-top: 12px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
