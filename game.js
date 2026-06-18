@@ -671,6 +671,17 @@
     startGame();
   });
 
+  // podziel się wynikiem (Web Share API + fallback do schowka)
+  const $shareBtn = document.getElementById('share-btn');
+  $shareBtn.addEventListener('click', async () => {
+    const text = `Zdobyłem ${score.toLocaleString('pl-PL')} pkt (poziom ${level}) w NEON BREAKOUT! 🎮`;
+    const url = location.href.split('#')[0];
+    try {
+      if (navigator.share) { await navigator.share({ title: 'NEON BREAKOUT', text, url }); }
+      else { await navigator.clipboard.writeText(text + ' ' + url); $shareBtn.textContent = '✓ SKOPIOWANO!'; setTimeout(() => $shareBtn.textContent = '📣 PODZIEL SIĘ WYNIKIEM', 1800); }
+    } catch {}
+  });
+
   // ============================================================
   //  Tabela najlepszych wyników (localStorage)
   // ============================================================
@@ -910,6 +921,7 @@
     stats.games++; bumpStats();
     $nameEntry.classList.add('hidden');
     hidePanels();
+    $shareBtn.classList.add('start-hidden');
     $startBtn.classList.remove('start-hidden');
     buildLevel();
     applyLevelStartPerks();
@@ -1005,6 +1017,7 @@
     else $overlayStats.classList.add('hidden');
     $nameEntry.classList.add('hidden');
     hidePanels();
+    $shareBtn.classList.add('start-hidden');
     $startBtn.textContent = btn || 'START';
     $startBtn.classList.remove('start-hidden');
     $overlay.classList.remove('hidden');
@@ -1024,6 +1037,7 @@
     $overlayStats.innerHTML = `<div><span class="big">${score.toLocaleString('pl-PL')}</span></div><div>poziom ${level} · ${modeNote}</div><div style="color:#ffd86b;margin-top:6px">🪙 +${earned} monet (masz ${coins.toLocaleString('pl-PL')})</div>`;
     $overlayStats.classList.remove('hidden');
     $startBtn.textContent = 'JESZCZE RAZ';
+    $shareBtn.classList.remove('start-hidden');
     $overlay.classList.remove('hidden');
 
     // zapis statystyk z gry

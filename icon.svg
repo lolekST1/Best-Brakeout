@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#160a33"/>
+      <stop offset="60%" stop-color="#0a0420"/>
+      <stop offset="100%" stop-color="#05010f"/>
+    </radialGradient>
+    <linearGradient id="b1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#aefcff"/><stop offset="100%" stop-color="#00aacc"/>
+    </linearGradient>
+    <linearGradient id="b2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff9bee"/><stop offset="100%" stop-color="#b500a0"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="40%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#ffffff"/><stop offset="55%" stop-color="#aefcff"/><stop offset="100%" stop-color="#00d6ff"/>
+    </radialGradient>
+    <filter id="g"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <g filter="url(#g)" opacity="0.85">
+    <rect x="96"  y="120" width="120" height="46" rx="10" fill="#00f0ff"/>
+    <rect x="232" y="120" width="120" height="46" rx="10" fill="#ff00e6"/>
+    <rect x="368" y="120" width="56"  height="46" rx="10" fill="#9d4edd"/>
+    <rect x="96"  y="182" width="80"  height="46" rx="10" fill="#ff00e6"/>
+    <rect x="192" y="182" width="120" height="46" rx="10" fill="#00f0ff"/>
+  </g>
+  <rect x="96"  y="120" width="120" height="46" rx="10" fill="url(#b1)"/>
+  <rect x="232" y="120" width="120" height="46" rx="10" fill="url(#b2)"/>
+  <rect x="368" y="120" width="56"  height="46" rx="10" fill="#b07cf0"/>
+  <rect x="96"  y="182" width="80"  height="46" rx="10" fill="url(#b2)"/>
+  <rect x="192" y="182" width="120" height="46" rx="10" fill="url(#b1)"/>
+  <rect x="328" y="182" width="88"  height="46" rx="10" fill="url(#b2)"/>
+  <!-- paddle -->
+  <rect x="176" y="402" width="160" height="26" rx="13" fill="url(#b1)"/>
+  <rect x="176" y="402" width="14"  height="26" rx="7" fill="#ff00e6"/>
+  <rect x="322" y="402" width="14"  height="26" rx="7" fill="#ff00e6"/>
+  <!-- ball -->
+  <circle cx="256" cy="318" r="30" fill="url(#ball)"/>
+</svg>

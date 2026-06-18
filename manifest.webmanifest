@@ -1,0 +1,14 @@
+{
+  "name": "NEON BREAKOUT",
+  "short_name": "Breakout",
+  "description": "Najbardziej wypasiona wizualnie wersja Breakouta — neon, power-upy, bossowie, tryby gry i sklep.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05010f",
+  "theme_color": "#05010f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

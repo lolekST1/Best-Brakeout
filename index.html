@@ -2,8 +2,15 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>NEON BREAKOUT</title>
+  <meta name="theme-color" content="#05010f" />
+  <meta name="description" content="Najbardziej wypasiona wizualnie wersja Breakouta — neon, power-upy, bossowie, tryby gry i sklep." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -89,6 +96,7 @@
         </div>
 
         <button id="start-btn" class="neon-btn">START</button>
+        <button id="share-btn" class="mini-btn start-hidden">📣 PODZIEL SIĘ WYNIKIEM</button>
         <div class="controls-hint">
           <span>← →  /  A D  &nbsp;ruch</span>
           <span>MYSZ&nbsp;steruje paletką</span>
@@ -116,5 +124,10 @@
   </div>
 
   <script src="game.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
 </body>
 </html>
