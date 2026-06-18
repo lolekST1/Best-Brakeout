@@ -268,7 +268,7 @@
   // ============================================================
   //  Encje
   // ============================================================
-  const paddle = { w: 130, h: 16, x: W / 2 - 65, y: H - 56, targetX: W / 2, vx: 0, glow: 0 };
+  const paddle = { w: 130, h: 16, x: W / 2 - 65, y: H - 56, targetX: W / 2, vx: 0, glow: 0, squash: 0 };
 
   let balls = [];
   function newBall(x, y, vx, vy) { return { x, y, vx, vy, r: 9, trail: [], stuck: false, stickDX: 0 }; }
@@ -281,7 +281,9 @@
   let boss = null;
   let bossShots = [];
   let shake = 0, flash = 0, flashHue = 320;
+  let hitStop = 0, zoom = 1, bgEnergy = 0, gravity = 0; // juice + dynamiczne tło + grawitacja
   const isBossLevel = (lvl) => lvl % 5 === 0;
+  function punch(z, hs) { zoom = Math.max(zoom, z); hitStop = Math.max(hitStop, hs); }
   let onBossDamaged = null, onBossDefeated = null; // hooki dla osiągnięć
 
   // ---------- Aktywne efekty (czas w klatkach 60 fps) ----------
@@ -456,7 +458,7 @@
     floatText(paddle.x + paddle.w / 2, paddle.y - 30, 'NEGACJA!', 280);
   }
   function bombHit() {
-    flash = 0.85; flashHue = 15; shake = 28;
+    flash = 0.85; flashHue = 15; shake = 28; punch(1.06, 4);
     Audio.explode();
     for (let k = 0; k < 36; k++) burst(rand(paddle.x, paddle.x + paddle.w), paddle.y, rand(10, 40), 6, 1.6);
     lives--; updateHUD();
@@ -880,6 +882,8 @@
     shake *= 0.86; if (shake < 0.1) shake = 0;
     flash *= 0.9; if (flash < 0.01) flash = 0;
     paddle.glow *= 0.9;
+    paddle.squash *= 0.85;
+    bgEnergy = lerp(bgEnergy, clamp(combo / 12, 0, 1), 0.05);
 
     // timery efektów
     for (const k in FX) if (FX[k] > 0) FX[k] = Math.max(0, FX[k] - dt);
@@ -978,7 +982,7 @@
     if (balls.length === 0) { loseLife(); return; }
 
     if (bricks.every(br => !br.alive || br.type === 'steel') && (!boss || !boss.alive)) {
-      state = State.LEVELCLEAR; levelClearTimer = 70; shake = 14;
+      state = State.LEVELCLEAR; levelClearTimer = 70; shake = 14; punch(1.06, 5);
       for (let k = 0; k < 40; k++) burst(rand(0, W), rand(fieldTop, H / 2), rand(180, 320), 6, 1.4);
     }
   }
@@ -1004,6 +1008,7 @@
   function pushTrail(b) { b.trail.push({ x: b.x, y: b.y }); if (b.trail.length > 14) b.trail.shift(); }
 
   function stepBall(b, dt) {
+    if (gravity) b.vy += gravity * dt; // tryb grawitacji — tor wygina się w dół
     const steps = Math.max(1, Math.ceil(Math.hypot(b.vx, b.vy) * dt / 4));
     const sx = (b.vx * dt) / steps, sy = (b.vy * dt) / steps;
     for (let s = 0; s < steps; s++) {
@@ -1035,7 +1040,7 @@
         b.vx = Math.cos(ang) * spd + paddle.vx * 0.35;
         b.vy = Math.sin(ang) * spd;
         const m = Math.hypot(b.vx, b.vy); b.vx = b.vx / m * spd; b.vy = b.vy / m * spd;
-        paddle.glow = 1; Audio.paddle();
+        paddle.glow = 1; paddle.squash = 1; Audio.paddle();
         burst(b.x, paddle.y, 190, 8, 0.8);
         combo = 0;
       }
@@ -1106,6 +1111,7 @@
   function explode(src) {
     Audio.explode();
     stats.explosives++; bumpStats();
+    punch(1.05, 3);
     shake = Math.min(shake + 8, 22); flash = Math.max(flash, 0.32); flashHue = 25;
     const cx = src.x + src.w / 2, cy = src.y + src.h / 2, radius = 80;
     burst(cx, cy, 25, 36, 1.9);
@@ -1207,7 +1213,7 @@
     const bonus = 1000 * (level / 5);
     addScore(bonus);
     floatText(boss.x, boss.y, '★ BOSS +' + bonus, boss.hue);
-    shake = 28; flash = 0.6; flashHue = 330;
+    shake = 28; flash = 0.6; flashHue = 330; punch(1.09, 9);
     for (let k = 0; k < 64; k++) burst(boss.x + rand(-boss.w / 2, boss.w / 2), boss.y + rand(-boss.h / 2, boss.h / 2), rand(300, 360), 6, 1.9);
     Audio.explode(); Audio.win();
     onBossDefeated && onBossDefeated();
@@ -1261,8 +1267,9 @@
   // ============================================================
   function render(time) {
     ctx.save();
+    if (zoom > 1.001) { ctx.translate(W / 2, H / 2); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H / 2); }
     if (shake > 0.2) ctx.translate(rand(-shake, shake), rand(-shake, shake));
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    ctx.clearRect(-60, -60, W + 120, H + 120);
 
     drawBackground(time);
     drawShield(time);
@@ -1301,16 +1308,32 @@
 
   function drawBackground(time) {
     const g = ctx.createRadialGradient(W / 2, -60, 40, W / 2, H * 0.3, W);
-    const pulse = 0.12 + Math.sin(time * 0.0006) * 0.04;
+    // mgławica reaguje na energię combo (dynamiczne tło)
+    const pulse = 0.12 + Math.sin(time * 0.0006) * 0.04 + bgEnergy * 0.22;
     g.addColorStop(0, `rgba(${T.nebula}, ${pulse})`);
     g.addColorStop(0.5, 'rgba(20, 8, 48, 0)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
+    // pierścienie energii przy wysokim combo
+    if (bgEnergy > 0.05) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const rings = 3;
+      for (let i = 0; i < rings; i++) {
+        const ph = (time * 0.0004 + i / rings) % 1;
+        ctx.globalAlpha = bgEnergy * 0.25 * (1 - ph);
+        ctx.strokeStyle = `rgba(${T.nebula}, 1)`; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(W / 2, H * 0.32, 60 + ph * W * 0.7, 0, TAU); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    const starBoost = 1 + bgEnergy * 1.5;
     for (const s of stars) {
       ctx.globalAlpha = 0.3 + s.z * 0.6;
       ctx.fillStyle = s.z > 0.7 ? T.stars[0] : T.stars[1];
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r * s.z, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r * s.z * starBoost, 0, TAU); ctx.fill();
     }
     ctx.globalAlpha = 1;
 
@@ -1444,6 +1467,10 @@
   function drawPaddle() {
     const x = paddle.x, y = paddle.y, w = paddle.w, h = paddle.h;
     ctx.save();
+    if (paddle.squash > 0.01) { // squash & stretch przy odbiciu
+      const sx = 1 + paddle.squash * 0.16, sy = 1 - paddle.squash * 0.32;
+      ctx.translate(x + w / 2, y + h); ctx.scale(sx, sy); ctx.translate(-(x + w / 2), -(y + h));
+    }
     const danger = FX.shrink > 0 || FX.reverse > 0;
     ctx.shadowColor = danger ? '#ff3b6b' : T.paddleGlow;
     ctx.shadowBlur = 22 + paddle.glow * 24;
@@ -1619,6 +1646,8 @@
   function loop(now) {
     let dt = (now - last) / 16.667; last = now;
     dt = Math.min(dt, 2.5);
+    zoom += (1 - zoom) * 0.18; // wygaszanie "punch zoom"
+    if (hitStop > 0) { hitStop -= dt; render(now); requestAnimationFrame(loop); return; }
     if (state === State.LEVELCLEAR) {
       levelClearTimer -= dt; updateParticles(dt);
       if (levelClearTimer <= 0) nextLevel();
