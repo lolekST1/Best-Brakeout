@@ -19,6 +19,7 @@
   const $combo = document.getElementById('combo-badge');
   const $comboText = document.getElementById('combo-text');
   const $overlay = document.getElementById('overlay');
+  const $overlayPanel = $overlay.querySelector('.overlay-panel');
   const $overlayTitle = $overlay.querySelector('.title');
   const $overlaySub = document.getElementById('overlay-subtitle');
   const $overlayStats = document.getElementById('overlay-stats');
@@ -55,7 +56,7 @@
     let actx = null, master = null, sfx = null, musicGain = null;
     let muted = false, musicOn = false;
     let schedTimer = null, step = 0, nextTime = 0;
-    let trackIdx = 0, intensity = 0;
+    let trackIdx = 0, intensity = 0, forcedTrack = false;
     const STEP_DUR = 0.2272; // ~110 BPM, ósemka
     const clampA = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 
@@ -135,23 +136,33 @@
       const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 8000;
       src.connect(f); f.connect(g); g.connect(musicGain); src.start(time);
     }
+    function mKick(time, v) {
+      const osc = actx.createOscillator(), g = actx.createGain();
+      osc.type = 'sine'; osc.frequency.setValueAtTime(150, time);
+      osc.frequency.exponentialRampToValueAtTime(45, time + 0.12);
+      g.gain.setValueAtTime(v, time); g.gain.exponentialRampToValueAtTime(0.0001, time + 0.16);
+      osc.connect(g); g.connect(musicGain); osc.start(time); osc.stop(time + 0.18);
+    }
     function playStep(s, time) {
       const tr = TRACKS[trackIdx];
       const bar = tr.bars[(s >> 3) % 4];
       const i = s % 8;
-      const cut = 1400 + intensity * 2600;
+      const cut = 1100 + intensity * 3400; // szerszy zakres jasności
       if (i % 2 === 0) mTone(bar.root, time, 0.42, tr.wave[0], 0.34, 600);
       const seq = [0, 1, 2, 3, 2, 1, 0, 1];
-      mTone(bar.arp[seq[i]] * 2, time, 0.22, tr.wave[1], 0.06 + intensity * 0.04, cut);
+      mTone(bar.arp[seq[i]] * 2, time, 0.22, tr.wave[1], 0.05 + intensity * 0.10, cut);
       mTone(bar.arp[seq[i]], time, 0.26, tr.wave[2], 0.10, 1800);
       if (i === 0) bar.pad.forEach(f => mTone(f, time, STEP_DUR * 8, 'sawtooth', 0.035, 900));
-      if (intensity > 0.35) mHat(time, 0.03 + intensity * 0.05);
-      if (intensity > 0.7 && i % 2 === 1) mHat(time, 0.04);
+      // warstwy dynamiczne — wyraźnie zależne od intensywności
+      if (intensity > 0.25) mHat(time, 0.03 + intensity * 0.08);
+      if (intensity > 0.45 && i % 2 === 1) mHat(time + STEP_DUR * 0.5, 0.04 + intensity * 0.05); // podwójny hat
+      if (intensity > 0.4 && i % 4 === 0) mKick(time, 0.18 + intensity * 0.22);
+      if (intensity > 0.6) mTone(bar.arp[seq[i]] * 4, time, 0.18, 'square', 0.03 + intensity * 0.05, cut + 1500); // lead
     }
     function scheduler() {
       while (nextTime < actx.currentTime + 0.25) { playStep(step, nextTime); nextTime += STEP_DUR; step++; }
     }
-    function musicTarget() { return (0.06 + intensity * 0.12) * vol.music * 1.6; }
+    function musicTarget() { return (0.05 + intensity * 0.24) * vol.music * 1.7; } // większy skok głośności
     function startMusic() {
       resume(); musicOn = true;
       musicGain.gain.cancelScheduledValues(actx.currentTime);
@@ -188,6 +199,8 @@
       setSfxVol(v) { vol.sfx = clampA(v); saveVol(); if (sfx) sfx.gain.value = vol.sfx; },
       setIntensity(x) { intensity = clampA(x); if (musicOn && musicGain) musicGain.gain.value = musicTarget(); },
       setTrack(i) { trackIdx = ((i % TRACKS.length) + TRACKS.length) % TRACKS.length; },
+      autoTrack(i) { if (!forcedTrack) trackIdx = ((i % TRACKS.length) + TRACKS.length) % TRACKS.length; },
+      cycleTrack() { forcedTrack = true; trackIdx = (trackIdx + 1) % TRACKS.length; if (!musicOn) startMusic(); return TRACKS[trackIdx].name; },
       trackName() { return TRACKS[trackIdx].name; },
       get trackCount() { return TRACKS.length; },
       get vol() { return vol; },
@@ -456,8 +469,8 @@
 
   function buildLevel() {
     boss = null; bossShots = [];
-    if (mode === 'custom' && customCells) { Audio.setTrack(0); buildCustomLevel(); return; }
-    Audio.setTrack(isBossLevel(level) ? 2 : (level - 1) % 3);
+    if (mode === 'custom' && customCells) { Audio.autoTrack(0); buildCustomLevel(); return; }
+    Audio.autoTrack(isBossLevel(level) ? 2 : (level - 1) % 3);
     if (isBossLevel(level)) { buildBossLevel(); return; }
     const word = artWordFor(level);
     if (word) { buildArtLevel(word); return; }
@@ -653,6 +666,12 @@
     $musicBtn.textContent = on ? '🎵 MUZYKA' : '🎵 MUZYKA (off)';
     $musicBtn.classList.toggle('off', !on);
   });
+  const $trackBtn = document.getElementById('track-btn');
+  $trackBtn.addEventListener('click', () => {
+    const name = Audio.cycleTrack(); // włącza muzykę jeśli wyłączona
+    $trackBtn.textContent = '🎶 ' + name;
+    $musicBtn.textContent = '🎵 MUZYKA'; $musicBtn.classList.remove('off');
+  });
   document.querySelectorAll('#theme-row .theme-btn').forEach(btn => {
     btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
   });
@@ -783,13 +802,58 @@
 
   // podziel się wynikiem (Web Share API + fallback do schowka)
   const $shareBtn = document.getElementById('share-btn');
+
+  // rysuje kartę wyniku (obrazek) do udostępnienia
+  function makeShareCanvas() {
+    const cw = 1000, ch = 560;
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const x = cv.getContext('2d');
+    const g = x.createLinearGradient(0, 0, cw, ch);
+    g.addColorStop(0, '#160a33'); g.addColorStop(0.55, '#0a0420'); g.addColorStop(1, '#05010f');
+    x.fillStyle = g; x.fillRect(0, 0, cw, ch);
+    // ramka neon
+    x.strokeStyle = T.css.cyan; x.lineWidth = 4; x.shadowColor = T.css.cyan; x.shadowBlur = 30;
+    x.strokeRect(24, 24, cw - 48, ch - 48); x.shadowBlur = 0;
+    x.textAlign = 'center';
+    // tytuł
+    x.font = '900 64px Orbitron, sans-serif'; x.fillStyle = '#fff';
+    x.shadowColor = T.css.magenta; x.shadowBlur = 24; x.fillText('NEON BREAKOUT', cw / 2, 120); x.shadowBlur = 0;
+    // wynik
+    x.font = '900 150px Orbitron, sans-serif'; x.fillStyle = T.css.cyan;
+    x.shadowColor = T.css.cyan; x.shadowBlur = 36; x.fillText(score.toLocaleString('pl-PL'), cw / 2, 300); x.shadowBlur = 0;
+    x.font = '700 30px Rajdhani, sans-serif'; x.fillStyle = '#b9c7ff';
+    x.fillText('PUNKTÓW', cw / 2, 345);
+    // szczegóły
+    const modeNote = mode === 'challenge' ? 'wyzwanie dnia' : (MODES[mode] ? MODES[mode].label : '');
+    x.font = '700 34px Rajdhani, sans-serif'; x.fillStyle = '#fff';
+    x.fillText(`poziom ${level}  ·  ${modeNote}`, cw / 2, 410);
+    // zachęta
+    x.font = '700 30px Rajdhani, sans-serif'; x.fillStyle = '#ffd86b';
+    x.fillText('🎮 Pobijesz mój wynik?', cw / 2, 470);
+    x.font = '600 26px Rajdhani, sans-serif'; x.fillStyle = T.css.cyan;
+    x.fillText('lolekst1.github.io/Best-Brakeout', cw / 2, 512);
+    return cv;
+  }
+  function canvasToBlob(cv) { return new Promise(res => { try { cv.toBlob(b => res(b), 'image/png'); } catch { res(null); } }); }
+
   $shareBtn.addEventListener('click', async () => {
-    const text = `Zdobyłem ${score.toLocaleString('pl-PL')} pkt (poziom ${level}) w NEON BREAKOUT! 🎮`;
     const url = location.href.split('#')[0];
+    const msg = `Zdobyłem ${score.toLocaleString('pl-PL')} pkt (poziom ${level}) w NEON BREAKOUT! 🎮 Pobijesz mój wynik? Zagraj: ${url}`;
+    const reset = () => setTimeout(() => $shareBtn.textContent = '📣 PODZIEL SIĘ WYNIKIEM', 1800);
+    let blob = null;
+    try { blob = await canvasToBlob(makeShareCanvas()); } catch {}
+    const file = blob ? new File([blob], 'neon-breakout.png', { type: 'image/png' }) : null;
     try {
-      if (navigator.share) { await navigator.share({ title: 'NEON BREAKOUT', text, url }); }
-      else { await navigator.clipboard.writeText(text + ' ' + url); $shareBtn.textContent = '✓ SKOPIOWANO!'; setTimeout(() => $shareBtn.textContent = '📣 PODZIEL SIĘ WYNIKIEM', 1800); }
-    } catch {}
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'NEON BREAKOUT', text: msg, files: [file] });
+      } else if (navigator.share) {
+        await navigator.share({ title: 'NEON BREAKOUT', text: msg, url });
+      } else {
+        try { await navigator.clipboard.writeText(msg); } catch {}
+        if (blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'neon-breakout-wynik.png'; a.click(); URL.revokeObjectURL(a.href); }
+        $shareBtn.textContent = '✓ SKOPIOWANO + OBRAZEK'; reset();
+      }
+    } catch { /* anulowano */ }
   });
 
   // ============================================================
@@ -1134,6 +1198,7 @@
     else $overlayStats.classList.add('hidden');
     $nameEntry.classList.add('hidden');
     hidePanels();
+    $overlayPanel.classList.add('compact'); // pauza — zwięzły panel
     $shareBtn.classList.add('start-hidden');
     $startBtn.textContent = btn || 'START';
     $startBtn.classList.remove('start-hidden');
@@ -1144,6 +1209,7 @@
   function showEndScreen(title, sub) {
     $overlayTitle.textContent = title;
     $overlayTitle.setAttribute('data-text', title);
+    $overlayPanel.classList.remove('compact');
     $overlaySub.textContent = sub;
     // naliczenie monet
     let earned = Math.floor(score / 100) + (level - 1) * 5;
@@ -1356,21 +1422,30 @@
         combo = 0;
       }
 
-      hitBricks(b);
-      hitBoss(b);
+      const hb = hitBricks(b);
+      const bb = hb ? false : hitBoss(b);
+      if (hb || bb) break; // jedno odbicie na klatkę — zapobiega zacinaniu w blokach
     }
     pushTrail(b);
   }
 
+  // odbicie zależne od kierunku ruchu — odwraca prędkość tylko gdy piłka wchodzi w blok
   function bounceOff(br, b) {
     const oL = (b.x + b.r) - br.x, oR = (br.x + br.w) - (b.x - b.r);
     const oT = (b.y + b.r) - br.y, oB = (br.y + br.h) - (b.y - b.r);
     const minX = Math.min(oL, oR), minY = Math.min(oT, oB);
-    if (minX < minY) { b.vx = -b.vx; b.x += oL < oR ? -minX : minX; }
-    else { b.vy = -b.vy; b.y += oT < oB ? -minY : minY; }
+    const eps = 0.5;
+    if (minX < minY) {
+      if (oL < oR) { b.x = br.x - b.r - eps; if (b.vx > 0) b.vx = -b.vx; }
+      else { b.x = br.x + br.w + b.r + eps; if (b.vx < 0) b.vx = -b.vx; }
+    } else {
+      if (oT < oB) { b.y = br.y - b.r - eps; if (b.vy > 0) b.vy = -b.vy; }
+      else { b.y = br.y + br.h + b.r + eps; if (b.vy < 0) b.vy = -b.vy; }
+    }
   }
 
   function hitBricks(b) {
+    let collided = false;
     for (let i = 0; i < bricks.length; i++) {
       const br = bricks[i];
       if (!br.alive) continue;
@@ -1380,13 +1455,14 @@
       if (br.type === 'steel') {
         bounceOff(br, b); br.hit = 1;
         Audio.steel(); burst(b.x, b.y, 205, 6, 0.8);
-        break;
+        return true;
       }
       if (FX.fireball > 0) { damageBrick(br, b, true); continue; } // przebija resztę
       bounceOff(br, b);
       damageBrick(br, b, false);
-      break;
+      return true;
     }
+    return collided;
   }
 
   function damageBrick(br, b, pierce) {
@@ -1494,17 +1570,25 @@
   }
 
   function hitBoss(b) {
-    if (!boss || !boss.alive) return;
+    if (!boss || !boss.alive) return false;
     const bx = boss.x - boss.w / 2, by = boss.y - boss.h / 2;
-    if (b.x + b.r < bx || b.x - b.r > bx + boss.w || b.y + b.r < by || b.y - b.r > by + boss.h) return;
+    if (b.x + b.r < bx || b.x - b.r > bx + boss.w || b.y + b.r < by || b.y - b.r > by + boss.h) return false;
+    let bounced = false;
     if (FX.fireball <= 0) {
       const oL = (b.x + b.r) - bx, oR = (bx + boss.w) - (b.x - b.r);
       const oT = (b.y + b.r) - by, oB = (by + boss.h) - (b.y - b.r);
-      const minX = Math.min(oL, oR), minY = Math.min(oT, oB);
-      if (minX < minY) { b.vx = -b.vx; b.x += oL < oR ? -minX : minX; }
-      else { b.vy = -b.vy; b.y += oT < oB ? -minY : minY; }
+      const minX = Math.min(oL, oR), minY = Math.min(oT, oB), eps = 0.5;
+      if (minX < minY) {
+        if (oL < oR) { b.x = bx - b.r - eps; if (b.vx > 0) b.vx = -b.vx; }
+        else { b.x = bx + boss.w + b.r + eps; if (b.vx < 0) b.vx = -b.vx; }
+      } else {
+        if (oT < oB) { b.y = by - b.r - eps; if (b.vy > 0) b.vy = -b.vy; }
+        else { b.y = by + boss.h + b.r + eps; if (b.vy < 0) b.vy = -b.vy; }
+      }
+      bounced = true;
     }
     damageBoss(b.x, b.y, FX.fireball > 0 ? 2 : 1);
+    return bounced;
   }
 
   function damageBoss(px, py, dmg) {
