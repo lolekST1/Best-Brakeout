@@ -1,5 +1,5 @@
 /* Service worker — offline cache dla NEON BREAKOUT (PWA) */
-const CACHE = 'neon-breakout-v3';
+const CACHE = 'neon-breakout-v4';
 const ASSETS = [
   './', './index.html', './style.css', './game.js',
   './manifest.webmanifest', './icon.svg'
