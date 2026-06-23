@@ -119,11 +119,10 @@ html, body {
   max-width: 92vw;
   margin: auto;
 }
-/* ekran pauzy — ukryj ustawienia, pokaż tylko postęp i WZNÓW */
+/* ekran pauzy — ukryj ustawienia rozgrywki, ale zostaw dźwięk/głośność */
 .overlay-panel.compact #mode-row,
 .overlay-panel.compact .challenge-row,
 .overlay-panel.compact #theme-row,
-.overlay-panel.compact .volume-row,
 .overlay-panel.compact .controls-hint { display: none; }
 .overlay-panel.compact .subtitle { margin-bottom: 14px; }
 
@@ -448,25 +447,39 @@ html, body {
 }
 
 /* ---------- Touch ---------- */
+/* Rozłożone po bokach, by nie zasłaniać pola gry (zwłaszcza w poziomie).
+   Kontener jest "przezroczysty" dla zdarzeń — łapią je tylko same przyciski,
+   więc środek ekranu (paletka) reaguje normalnie na dotyk. */
 #touch-controls {
   position: absolute;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0; right: 0; bottom: 14px;
   display: none;
-  gap: 14px;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 0 12px;
   z-index: 8;
+  pointer-events: none;
 }
 .touch-pad {
-  width: 78px; height: 64px;
+  pointer-events: auto;
+  width: 72px; height: 60px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 28px; color: var(--neon-cyan);
-  background: rgba(10, 4, 32, 0.55);
+  font-size: 26px; color: var(--neon-cyan);
+  background: rgba(10, 4, 32, 0.5);
   border: 1px solid rgba(0, 240, 255, 0.35);
   border-radius: 14px;
   box-shadow: 0 0 18px rgba(0, 240, 255, 0.18);
+  opacity: 0.82;
 }
-.touch-pad:active { background: rgba(0, 240, 255, 0.18); }
+#touch-left { order: 1; }
+#touch-right { order: 2; }
+#touch-launch { order: 3; margin-left: auto; } /* wystrzał dosunięty do prawej krawędzi */
+.touch-pad:active { background: rgba(0, 240, 255, 0.2); opacity: 1; }
 @media (hover: none) and (pointer: coarse) {
   #touch-controls { display: flex; }
+}
+/* W orientacji poziomej zsuń pady jeszcze niżej i bliżej rogów */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  #touch-controls { bottom: 8px; padding: 0 8px; }
+  .touch-pad { width: 64px; height: 52px; font-size: 22px; opacity: 0.7; }
 }
