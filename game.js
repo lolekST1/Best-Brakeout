@@ -288,6 +288,8 @@
   let mods = { fast: 0, tiny: 0, gravity: 0, tough: 0, chaos: 0, big: 0 };
   let challengeMods = null, challengeKey = null;
   let customCells = null, startCustom = false; // edytor planszy
+  let gravityStrength = 0.14; // regulowana siła grawitacji (tryb/wyzwanie)
+  try { const g = parseFloat(localStorage.getItem('neonBreakoutGravity')); if (g >= 0.04 && g <= 0.32) gravityStrength = g; } catch {}
 
   // seedowany RNG (mulberry32) dla wyzwania dnia
   function mulberry32(a) {
@@ -687,12 +689,30 @@
   $volSfx.addEventListener('input', () => { Audio.setSfxVol($volSfx.value / 100); });
   $volSfx.addEventListener('change', () => Audio.power());
 
+  // suwak siły grawitacji
+  const $gravRow = document.getElementById('gravity-row');
+  const $gravSlider = document.getElementById('grav-slider');
+  const $gravVal = document.getElementById('grav-val');
+  function syncGravLabel() { $gravSlider.value = Math.round(gravityStrength * 100); $gravVal.textContent = gravityStrength.toFixed(2); }
+  syncGravLabel();
+  $gravSlider.addEventListener('input', () => {
+    gravityStrength = clamp($gravSlider.value / 100, 0.04, 0.32);
+    $gravVal.textContent = gravityStrength.toFixed(2);
+    try { localStorage.setItem('neonBreakoutGravity', gravityStrength); } catch {}
+    if (mode === 'gravity' || mods.gravity) gravity = gravityStrength; // na żywo
+  });
+  // pokazuj suwak gdy istotny: w menu dla trybu Grawitacja, w pauzie gdy grawitacja aktywna
+  function refreshGravityRow(forceActive) {
+    $gravRow.classList.toggle('show', forceActive || selectedMode === 'gravity');
+  }
+
   // wybór trybu gry
   function setMode(m) {
     if (!MODES[m]) return;
     selectedMode = m; challengeMods = null; challengeKey = null;
     try { localStorage.setItem('neonBreakoutMode', m); } catch {}
     document.querySelectorAll('#mode-row .mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+    refreshGravityRow(false);
   }
   document.querySelectorAll('#mode-row .mode-btn').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
   setMode(selectedMode);
@@ -1085,7 +1105,7 @@
     mods = Object.assign({ fast: 0, tiny: 0, gravity: 0, tough: 0, chaos: 0, big: 0 }, isChallenge ? challengeMods : {});
     endless = !!cfg.endless;
     noLifeLoss = !!cfg.noLifeLoss;
-    gravity = cfg.gravity + (mods.gravity ? 0.14 : 0);
+    gravity = (cfg.gravity > 0 || mods.gravity) ? gravityStrength : 0;
     timeLeft = cfg.time ? cfg.time * 60 : 0;
 
     score = 0; lives = cfg.lives + (ownsPerk('perk_life') ? 1 : 0); level = 1; combo = 0;
@@ -1133,6 +1153,7 @@
       state = State.PAUSED;
       showOverlay('PAUZA', 'Naciśnij SPACJĘ / P aby kontynuować', null, 'WZNÓW');
       showPanels(); setPanel('ach'); // pokaż bieżący postęp osiągnięć podczas pauzy
+      refreshGravityRow(gravity > 0); // suwak grawitacji dostępny w pauzie, jeśli aktywna
     } else if (state === State.PAUSED) { hideOverlay(); state = State.PLAYING; }
   }
 
@@ -1210,6 +1231,7 @@
     $overlayTitle.textContent = title;
     $overlayTitle.setAttribute('data-text', title);
     $overlayPanel.classList.remove('compact');
+    refreshGravityRow(false); // wróć do widoczności wg wybranego trybu
     $overlaySub.textContent = sub;
     // naliczenie monet
     let earned = Math.floor(score / 100) + (level - 1) * 5;

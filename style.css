@@ -393,6 +393,25 @@ html, body {
   color: #1a0312; background: var(--neon-magenta); border-color: var(--neon-magenta);
   box-shadow: 0 0 16px var(--neon-magenta);
 }
+.gravity-row {
+  display: none; align-items: center; justify-content: center; gap: 10px; margin: 2px 0 14px;
+}
+.gravity-row.show { display: flex; }
+.gravity-row .theme-label { margin: 0; }
+#grav-slider {
+  -webkit-appearance: none; appearance: none; width: 150px; height: 5px; border-radius: 4px;
+  background: rgba(157, 78, 221, 0.35); outline: none;
+}
+#grav-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); cursor: pointer;
+}
+#grav-slider::-moz-range-thumb {
+  width: 16px; height: 16px; border: none; border-radius: 50%;
+  background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); cursor: pointer;
+}
+#grav-val { font-family: 'Orbitron', sans-serif; font-size: 14px; color: #fff; min-width: 38px; text-align: left; }
+
 .challenge-row { margin: 4px 0 18px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 #challenge-info { font-size: 13px; color: #ffd86b; letter-spacing: 0.5px; min-height: 16px; }
 
